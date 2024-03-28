@@ -19,7 +19,7 @@
 -- 
 -- ## Missions:
 -- 
--- [ESC - Escorting](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/ESC%20-%20Escorting)
+-- [ESC - Escorting](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AI/AI_Escort)
 -- 
 -- ===
 -- 
@@ -147,8 +147,8 @@
 -- @image Escorting.JPG
 
 
-
---- @type AI_ESCORT
+---
+-- @type AI_ESCORT
 -- @extends AI.AI_Formation#AI_FORMATION
 
 
@@ -168,10 +168,17 @@
 -- 
 -- -- First find the GROUP object and the CLIENT object.
 -- local EscortUnit = CLIENT:FindByName( "Unit Name" ) -- The Unit Name is the name of the unit flagged with the skill Client in the mission editor.
--- local EscortGroup = GROUP:FindByName( "Group Name" ) -- The Group Name is the name of the group that will escort the Escort Client.
+-- local EscortGroup = SET_GROUP:New():FilterPrefixes("Escort"):FilterOnce() -- The the group name of the escorts contains "Escort".
 -- 
 -- -- Now use these 2 objects to construct the new EscortPlanes object.
 -- EscortPlanes = AI_ESCORT:New( EscortUnit, EscortGroup, "Desert", "Welcome to the mission. You are escorted by a plane with code name 'Desert', which can be instructed through the F10 radio menu." )
+-- EscortPlanes:MenusAirplanes() -- create menus for airplanes
+-- EscortPlanes:__Start(2)
+--
+-- # Developer Note
+-- 
+-- Note while this class still works, it is no longer supported as the original author stopped active development of MOOSE
+-- Therefore, this class is considered to be deprecated
 --
 -- @field #AI_ESCORT
 AI_ESCORT = {
@@ -189,15 +196,8 @@ AI_ESCORT = {
   TaskPoints = {}
 }
 
---- @field Functional.Detection#DETECTION_AREAS
+-- @field Functional.Detection#DETECTION_AREAS
 AI_ESCORT.Detection = nil
-
---- MENUPARAM type
--- @type MENUPARAM
--- @field #AI_ESCORT ParamSelf
--- @field #Distance ParamDistance
--- @field #function ParamFunction
--- @field #string ParamMessage
 
 --- AI_ESCORT class constructor for an AI group
 -- @param #AI_ESCORT self
@@ -211,10 +211,14 @@ AI_ESCORT.Detection = nil
 -- 
 -- -- First find the GROUP object and the CLIENT object.
 -- local EscortUnit = CLIENT:FindByName( "Unit Name" ) -- The Unit Name is the name of the unit flagged with the skill Client in the mission editor.
--- local EscortGroup = GROUP:FindByName( "Group Name" ) -- The Group Name is the name of the group that will escort the Escort Client.
+-- local EscortGroup = SET_GROUP:New():FilterPrefixes("Escort"):FilterOnce() -- The the group name of the escorts contains "Escort".
 -- 
 -- -- Now use these 2 objects to construct the new EscortPlanes object.
 -- EscortPlanes = AI_ESCORT:New( EscortUnit, EscortGroup, "Desert", "Welcome to the mission. You are escorted by a plane with code name 'Desert', which can be instructed through the F10 radio menu." )
+-- EscortPlanes:MenusAirplanes() -- create menus for airplanes
+-- EscortPlanes:__Start(2)
+-- 
+-- 
 function AI_ESCORT:New( EscortUnit, EscortGroupSet, EscortName, EscortBriefing )
   
   local self = BASE:Inherit( self, AI_FORMATION:New( EscortUnit, EscortGroupSet, EscortName, EscortBriefing ) ) -- #AI_ESCORT
@@ -227,10 +231,17 @@ function AI_ESCORT:New( EscortUnit, EscortGroupSet, EscortName, EscortBriefing )
   self.EscortGroupSet = EscortGroupSet
   
   self.EscortGroupSet:SetSomeIteratorLimit( 8 )
-  
+
   self.EscortBriefing = EscortBriefing
  
   self.Menu = {}
+  self.Menu.HoldAtEscortPosition = self.Menu.HoldAtEscortPosition or {}
+  self.Menu.HoldAtLeaderPosition = self.Menu.HoldAtLeaderPosition or {}
+  self.Menu.Flare = self.Menu.Flare or {}
+  self.Menu.Smoke = self.Menu.Smoke or {}
+  self.Menu.Targets = self.Menu.Targets or {}
+  self.Menu.ROE = self.Menu.ROE or {}
+  self.Menu.ROT = self.Menu.ROT or {}
   
 --  if not EscortBriefing then
 --    EscortGroup:MessageToClient( EscortGroup:GetCategoryName() .. " '" .. EscortName .. "' (" .. EscortGroup:GetCallsign() .. ") reporting! " ..
@@ -250,7 +261,7 @@ function AI_ESCORT:New( EscortUnit, EscortGroupSet, EscortName, EscortBriefing )
 
 
   EscortGroupSet:ForEachGroup(
-    --- @param Core.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       -- Set EscortGroup known at EscortUnit.
       if not self.PlayerUnit._EscortGroups then
@@ -325,14 +336,14 @@ function AI_ESCORT:_InitEscortRoute( EscortGroup )
 end
 
 
---- @param #AI_ESCORT self
+-- @param #AI_ESCORT self
 -- @param Core.Set#SET_GROUP EscortGroupSet
 function AI_ESCORT:onafterStart( EscortGroupSet )
 
   self:F()
 
   EscortGroupSet:ForEachGroup(
-    --- @param Core.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       EscortGroup:WayPointInitialize()
     
@@ -370,7 +381,7 @@ function AI_ESCORT:onafterStart( EscortGroupSet )
   self:_InitFlightMenus()
   
   self.EscortGroupSet:ForSomeGroupAlive(
-    --- @param Core.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
 
       self:_InitEscortMenus( EscortGroup )
@@ -378,7 +389,7 @@ function AI_ESCORT:onafterStart( EscortGroupSet )
 
       self:SetFlightModeFormation( EscortGroup )
       
-      --- @param #AI_ESCORT self
+      -- @param #AI_ESCORT self
       -- @param Core.Event#EVENTDATA EventData
       function EscortGroup:OnEventDeadOrCrash( EventData )
         self:F( { "EventDead", EventData } )
@@ -394,14 +405,14 @@ function AI_ESCORT:onafterStart( EscortGroupSet )
 
 end
 
---- @param #AI_ESCORT self
+-- @param #AI_ESCORT self
 -- @param Core.Set#SET_GROUP EscortGroupSet
 function AI_ESCORT:onafterStop( EscortGroupSet )
 
   self:F()
 
   EscortGroupSet:ForEachGroup(
-    --- @param Core.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       EscortGroup:WayPointInitialize()
     
@@ -443,9 +454,9 @@ end
 -- @param #AI_ESCORT self
 -- @param #number XStart The start position on the X-axis in meters for the first group.
 -- @param #number XSpace The space between groups on the X-axis in meters for each sequent group.
--- @param #nubmer YStart The start position on the Y-axis in meters for the first group.
+-- @param #number YStart The start position on the Y-axis in meters for the first group.
 -- @param #number YSpace The space between groups on the Y-axis in meters for each sequent group.
--- @param #nubmer ZStart The start position on the Z-axis in meters for the first group.
+-- @param #number ZStart The start position on the Z-axis in meters for the first group.
 -- @param #number ZSpace The space between groups on the Z-axis in meters for each sequent group.
 -- @param #number ZLevels The amount of levels on the Z-axis.
 -- @return #AI_ESCORT
@@ -493,9 +504,9 @@ end
 -- @param #AI_ESCORT self
 -- @param #number XStart The start position on the X-axis in meters for the first group.
 -- @param #number XSpace The space between groups on the X-axis in meters for each sequent group.
--- @param #nubmer YStart The start position on the Y-axis in meters for the first group.
+-- @param #number YStart The start position on the Y-axis in meters for the first group.
 -- @param #number YSpace The space between groups on the Y-axis in meters for each sequent group.
--- @param #nubmer ZStart The start position on the Z-axis in meters for the first group.
+-- @param #number ZStart The start position on the Z-axis in meters for the first group.
 -- @param #number ZSpace The space between groups on the Z-axis in meters for each sequent group.
 -- @param #number ZLevels The amount of levels on the Z-axis.
 -- @return #AI_ESCORT
@@ -550,7 +561,7 @@ function AI_ESCORT:SetFlightMenuFormation( Formation )
     local MenuFlightFormationID = MENU_GROUP_COMMAND:New( self.PlayerGroup, Formation, FlightMenuFormation, 
       function ( self, Formation, ... )
         self.EscortGroupSet:ForSomeGroupAlive(
-          --- @param Core.Group#GROUP EscortGroup
+          -- @param Wrapper.Group#GROUP EscortGroup
           function( EscortGroup, self, Formation, Arguments )
             if EscortGroup:IsAir() then
               self:E({FormationID=FormationID})
@@ -580,7 +591,7 @@ end
 -- @param #AI_ESCORT self
 -- @param #number XStart The start position on the X-axis in meters for the first group.
 -- @param #number XSpace The space between groups on the X-axis in meters for each sequent group.
--- @param #nubmer YStart The start position on the Y-axis in meters for the first group.
+-- @param #number YStart The start position on the Y-axis in meters for the first group.
 -- @return #AI_ESCORT
 function AI_ESCORT:MenuFormationTrail( XStart, XSpace, YStart )
 
@@ -594,7 +605,7 @@ end
 -- @param #AI_ESCORT self
 -- @param #number XStart The start position on the X-axis in meters for the first group.
 -- @param #number XSpace The space between groups on the X-axis in meters for each sequent group.
--- @param #nubmer YStart The start position on the Y-axis in meters for the first group.
+-- @param #number YStart The start position on the Y-axis in meters for the first group.
 -- @param #number YSpace The space between groups on the Y-axis in meters for each sequent group.
 -- @return #AI_ESCORT
 function AI_ESCORT:MenuFormationStack( XStart, XSpace, YStart, YSpace )
@@ -609,8 +620,8 @@ end
 -- This menu will appear under **Formation**.
 -- @param #AI_ESCORT self
 -- @param #number XStart The start position on the X-axis in meters for the first group.
--- @param #nubmer YStart The start position on the Y-axis in meters for the first group.
--- @param #nubmer ZStart The start position on the Z-axis in meters for the first group.
+-- @param #number YStart The start position on the Y-axis in meters for the first group.
+-- @param #number ZStart The start position on the Z-axis in meters for the first group.
 -- @param #number ZSpace The space between groups on the Z-axis in meters for each sequent group.
 -- @return #AI_ESCORT
 function AI_ESCORT:MenuFormationLeftLine( XStart, YStart, ZStart, ZSpace )
@@ -625,8 +636,8 @@ end
 -- This menu will appear under **Formation**.
 -- @param #AI_ESCORT self
 -- @param #number XStart The start position on the X-axis in meters for the first group.
--- @param #nubmer YStart The start position on the Y-axis in meters for the first group.
--- @param #nubmer ZStart The start position on the Z-axis in meters for the first group.
+-- @param #number YStart The start position on the Y-axis in meters for the first group.
+-- @param #number ZStart The start position on the Z-axis in meters for the first group.
 -- @param #number ZSpace The space between groups on the Z-axis in meters for each sequent group.
 -- @return #AI_ESCORT
 function AI_ESCORT:MenuFormationRightLine( XStart, YStart, ZStart, ZSpace )
@@ -642,8 +653,8 @@ end
 -- @param #AI_ESCORT self
 -- @param #number XStart The start position on the X-axis in meters for the first group.
 -- @param #number XSpace The space between groups on the X-axis in meters for each sequent group.
--- @param #nubmer YStart The start position on the Y-axis in meters for the first group.
--- @param #nubmer ZStart The start position on the Z-axis in meters for the first group.
+-- @param #number YStart The start position on the Y-axis in meters for the first group.
+-- @param #number ZStart The start position on the Z-axis in meters for the first group.
 -- @param #number ZSpace The space between groups on the Z-axis in meters for each sequent group.
 -- @return #AI_ESCORT
 function AI_ESCORT:MenuFormationLeftWing( XStart, XSpace, YStart, ZStart, ZSpace )
@@ -659,8 +670,8 @@ end
 -- @param #AI_ESCORT self
 -- @param #number XStart The start position on the X-axis in meters for the first group.
 -- @param #number XSpace The space between groups on the X-axis in meters for each sequent group.
--- @param #nubmer YStart The start position on the Y-axis in meters for the first group.
--- @param #nubmer ZStart The start position on the Z-axis in meters for the first group.
+-- @param #number YStart The start position on the Y-axis in meters for the first group.
+-- @param #number ZStart The start position on the Z-axis in meters for the first group.
 -- @param #number ZSpace The space between groups on the Z-axis in meters for each sequent group.
 -- @return #AI_ESCORT
 function AI_ESCORT:MenuFormationRightWing( XStart, XSpace, YStart, ZStart, ZSpace )
@@ -676,9 +687,9 @@ end
 -- @param #AI_ESCORT self
 -- @param #number XStart The start position on the X-axis in meters for the first group.
 -- @param #number XSpace The space between groups on the X-axis in meters for each sequent group.
--- @param #nubmer YStart The start position on the Y-axis in meters for the first group.
+-- @param #number YStart The start position on the Y-axis in meters for the first group.
 -- @param #number YSpace The space between groups on the Y-axis in meters for each sequent group.
--- @param #nubmer ZStart The start position on the Z-axis in meters for the first group.
+-- @param #number ZStart The start position on the Z-axis in meters for the first group.
 -- @param #number ZSpace The space between groups on the Z-axis in meters for each sequent group.
 -- @return #AI_ESCORT
 function AI_ESCORT:MenuFormationCenterWing( XStart, XSpace, YStart, YSpace, ZStart, ZSpace )
@@ -694,9 +705,9 @@ end
 -- @param #AI_ESCORT self
 -- @param #number XStart The start position on the X-axis in meters for the first group.
 -- @param #number XSpace The space between groups on the X-axis in meters for each sequent group.
--- @param #nubmer YStart The start position on the Y-axis in meters for the first group.
+-- @param #number YStart The start position on the Y-axis in meters for the first group.
 -- @param #number YSpace The space between groups on the Y-axis in meters for each sequent group.
--- @param #nubmer ZStart The start position on the Z-axis in meters for the first group.
+-- @param #number ZStart The start position on the Z-axis in meters for the first group.
 -- @param #number ZSpace The space between groups on the Z-axis in meters for each sequent group.
 -- @return #AI_ESCORT
 function AI_ESCORT:MenuFormationVic( XStart, XSpace, YStart, YSpace, ZStart, ZSpace )
@@ -712,9 +723,9 @@ end
 -- @param #AI_ESCORT self
 -- @param #number XStart The start position on the X-axis in meters for the first group.
 -- @param #number XSpace The space between groups on the X-axis in meters for each sequent group.
--- @param #nubmer YStart The start position on the Y-axis in meters for the first group.
+-- @param #number YStart The start position on the Y-axis in meters for the first group.
 -- @param #number YSpace The space between groups on the Y-axis in meters for each sequent group.
--- @param #nubmer ZStart The start position on the Z-axis in meters for the first group.
+-- @param #number ZStart The start position on the Z-axis in meters for the first group.
 -- @param #number ZSpace The space between groups on the Z-axis in meters for each sequent group.
 -- @param #number ZLevels The amount of levels on the Z-axis.
 -- @return #AI_ESCORT
@@ -764,7 +775,7 @@ end
 
 function AI_ESCORT:SetFlightMenuHoldAtEscortPosition()
 
-  for _, MenuHoldAtEscortPosition in pairs( self.Menu.HoldAtEscortPosition ) do
+  for _, MenuHoldAtEscortPosition in pairs( self.Menu.HoldAtEscortPosition or {} ) do
     local FlightMenuReportNavigation = MENU_GROUP:New( self.PlayerGroup, "Navigation", self.FlightMenu )
   
     local FlightMenuHoldPosition = MENU_GROUP_COMMAND
@@ -785,7 +796,7 @@ end
 
 function AI_ESCORT:SetEscortMenuHoldAtEscortPosition( EscortGroup )
 
-  for _, HoldAtEscortPosition in pairs( self.Menu.HoldAtEscortPosition ) do
+  for _, HoldAtEscortPosition in pairs( self.Menu.HoldAtEscortPosition or {}) do
     if EscortGroup:IsAir() then
       local EscortGroupName = EscortGroup:GetName()
       local EscortMenuReportNavigation = MENU_GROUP:New( self.PlayerGroup, "Navigation", EscortGroup.EscortMenu )
@@ -853,7 +864,7 @@ end
 
 function AI_ESCORT:SetFlightMenuHoldAtLeaderPosition()
 
-  for _, MenuHoldAtLeaderPosition in pairs( self.Menu.HoldAtLeaderPosition ) do
+  for _, MenuHoldAtLeaderPosition in pairs( self.Menu.HoldAtLeaderPosition or {}) do
     local FlightMenuReportNavigation = MENU_GROUP:New( self.PlayerGroup, "Navigation", self.FlightMenu )
   
     local FlightMenuHoldAtLeaderPosition = MENU_GROUP_COMMAND
@@ -874,7 +885,7 @@ end
 
 function AI_ESCORT:SetEscortMenuHoldAtLeaderPosition( EscortGroup )
 
-  for _, HoldAtLeaderPosition in pairs( self.Menu.HoldAtLeaderPosition ) do
+  for _, HoldAtLeaderPosition in pairs( self.Menu.HoldAtLeaderPosition or {}) do
     if EscortGroup:IsAir() then
       
       local EscortGroupName = EscortGroup:GetName()
@@ -999,7 +1010,7 @@ end
 
 function AI_ESCORT:SetFlightMenuFlare()
 
-  for _, MenuFlare in pairs( self.Menu.Flare) do
+  for _, MenuFlare in pairs( self.Menu.Flare or {}) do
     local FlightMenuReportNavigation = MENU_GROUP:New( self.PlayerGroup, "Navigation", self.FlightMenu )
     local FlightMenuFlare = MENU_GROUP:New( self.PlayerGroup, MenuFlare.MenuText, FlightMenuReportNavigation )
   
@@ -1014,7 +1025,7 @@ end
 
 function AI_ESCORT:SetEscortMenuFlare( EscortGroup )
 
-  for _, MenuFlare in pairs( self.Menu.Flare) do
+  for _, MenuFlare in pairs( self.Menu.Flare or {}) do
     if EscortGroup:IsAir() then
       
       local EscortGroupName = EscortGroup:GetName()
@@ -1059,7 +1070,7 @@ end
 
 function AI_ESCORT:SetFlightMenuSmoke()
 
-  for _, MenuSmoke in pairs( self.Menu.Smoke) do
+  for _, MenuSmoke in pairs( self.Menu.Smoke or {}) do
     local FlightMenuReportNavigation = MENU_GROUP:New( self.PlayerGroup, "Navigation", self.FlightMenu )
     local FlightMenuSmoke = MENU_GROUP:New( self.PlayerGroup, MenuSmoke.MenuText, FlightMenuReportNavigation )
   
@@ -1076,7 +1087,7 @@ end
 
 function AI_ESCORT:SetEscortMenuSmoke( EscortGroup )
 
-  for _, MenuSmoke in pairs( self.Menu.Smoke) do
+  for _, MenuSmoke in pairs( self.Menu.Smoke or {}) do
     if EscortGroup:IsAir() then
       
       local EscortGroupName = EscortGroup:GetName()
@@ -1169,7 +1180,7 @@ function AI_ESCORT:SetFlightMenuTargets()
   local FlightMenuAttackNearbyAir = MENU_GROUP_COMMAND:New( self.PlayerGroup, "Attack nearest airborne targets",  self.FlightMenuAttack, AI_ESCORT._FlightAttackNearestTarget, self, self.__Enum.ReportType.Air ):SetTag( "Attack" )
   local FlightMenuAttackNearbyGround = MENU_GROUP_COMMAND:New( self.PlayerGroup, "Attack nearest ground targets",  self.FlightMenuAttack, AI_ESCORT._FlightAttackNearestTarget, self, self.__Enum.ReportType.Ground ):SetTag( "Attack" )
   
-  for _, MenuTargets in pairs( self.Menu.Targets) do
+  for _, MenuTargets in pairs( self.Menu.Targets or {}) do
     MenuTargets.FlightReportTargetsScheduler = SCHEDULER:New( self, self._FlightReportTargetsScheduler, {}, MenuTargets.Interval, MenuTargets.Interval )
   end
 
@@ -1179,7 +1190,7 @@ end
 
 function AI_ESCORT:SetEscortMenuTargets( EscortGroup )
 
-  for _, MenuTargets in pairs( self.Menu.Targets) do
+  for _, MenuTargets in pairs( self.Menu.Targets or {} or {}) do
     if EscortGroup:IsAir() then
       local EscortGroupName = EscortGroup:GetName()
       --local EscortMenuReportTargets = MENU_GROUP:New( self.PlayerGroup, "Report targets", EscortGroup.EscortMenu )
@@ -1231,7 +1242,7 @@ function AI_ESCORT:MenuAssistedAttack()
   self:F()
 
   self.EscortGroupSet:ForSomeGroupAlive(
-    --- @param Core.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       if not EscortGroup:IsAir() then
         -- Request assistance from other escorts.
@@ -1246,7 +1257,7 @@ end
 
 function AI_ESCORT:SetFlightMenuROE()
 
-  for _, MenuROE in pairs( self.Menu.ROE) do
+  for _, MenuROE in pairs( self.Menu.ROE or {}) do
     local FlightMenuROE = MENU_GROUP:New( self.PlayerGroup, "Rule Of Engagement", self.FlightMenu )
   
     local FlightMenuROEHoldFire   = MENU_GROUP_COMMAND:New( self.PlayerGroup, "Hold fire",          FlightMenuROE, AI_ESCORT._FlightROEHoldFire,   self,  "Holding weapons!" )
@@ -1261,7 +1272,7 @@ end
 
 function AI_ESCORT:SetEscortMenuROE( EscortGroup )
 
-  for _, MenuROE in pairs( self.Menu.ROE) do
+  for _, MenuROE in pairs( self.Menu.ROE or {}) do
     if EscortGroup:IsAir() then
 
       local EscortGroupName = EscortGroup:GetName()
@@ -1302,7 +1313,7 @@ end
 
 function AI_ESCORT:SetFlightMenuROT()
 
-  for _, MenuROT in pairs( self.Menu.ROT) do
+  for _, MenuROT in pairs( self.Menu.ROT or {}) do
     local FlightMenuROT = MENU_GROUP:New( self.PlayerGroup, "Reaction On Threat", self.FlightMenu )
   
     local FlightMenuROTNoReaction     = MENU_GROUP_COMMAND:New( self.PlayerGroup, "Fight until death",             FlightMenuROT, AI_ESCORT._FlightROTNoReaction,     self, "Fighting until death!" )
@@ -1317,7 +1328,7 @@ end
 
 function AI_ESCORT:SetEscortMenuROT( EscortGroup )
 
-  for _, MenuROT in pairs( self.Menu.ROT) do
+  for _, MenuROT in pairs( self.Menu.ROT or {}) do
     if EscortGroup:IsAir() then
 
       local EscortGroupName = EscortGroup:GetName()
@@ -1375,7 +1386,7 @@ function AI_ESCORT:SetEscortMenuResumeMission( EscortGroup )
 end
 
 
---- @param #AI_ESCORT self
+-- @param #AI_ESCORT self
 -- @param Wrapper.Group#GROUP OrbitGroup
 -- @param Wrapper.Group#GROUP EscortGroup
 -- @param #number OrbitHeight
@@ -1419,7 +1430,7 @@ function AI_ESCORT:_HoldPosition( OrbitGroup, EscortGroup, OrbitHeight, OrbitSec
 end
 
 
---- @param #AI_ESCORT self
+-- @param #AI_ESCORT self
 -- @param Wrapper.Group#GROUP OrbitGroup
 -- @param #number OrbitHeight
 -- @param #number OrbitSeconds
@@ -1428,7 +1439,7 @@ function AI_ESCORT:_FlightHoldPosition( OrbitGroup, OrbitHeight, OrbitSeconds )
   local EscortUnit = self.PlayerUnit
 
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Core.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup, OrbitGroup )
       if EscortGroup:IsAir() then
         if OrbitGroup == nil then
@@ -1456,7 +1467,7 @@ end
 function AI_ESCORT:_FlightJoinUp()
 
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Core.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       if EscortGroup:IsAir() then
         self:_JoinUp( EscortGroup )
@@ -1471,7 +1482,7 @@ end
 -- @param #AI_ESCORT self
 -- @param #number XStart The start position on the X-axis in meters for the first group.
 -- @param #number XSpace The space between groups on the X-axis in meters for each sequent group.
--- @param #nubmer YStart The start position on the Y-axis in meters for the first group.
+-- @param #number YStart The start position on the Y-axis in meters for the first group.
 -- @return #AI_ESCORT
 function AI_ESCORT:_EscortFormationTrail( EscortGroup, XStart, XSpace, YStart )
 
@@ -1483,7 +1494,7 @@ end
 function AI_ESCORT:_FlightFormationTrail( XStart, XSpace, YStart )
 
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Core.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       if EscortGroup:IsAir() then
         self:_EscortFormationTrail( EscortGroup, XStart, XSpace, YStart )
@@ -1510,7 +1521,7 @@ end
 function AI_ESCORT:_FlightFormationStack( XStart, XSpace, YStart, YSpace )
 
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Core.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       if EscortGroup:IsAir() then
         self:_EscortFormationStack( EscortGroup, XStart, XSpace, YStart, YSpace )
@@ -1533,7 +1544,7 @@ end
 function AI_ESCORT:_FlightFlare( Color, Message )
 
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Core.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       if EscortGroup:IsAir() then
         self:_Flare( EscortGroup, Color, Message )
@@ -1556,7 +1567,7 @@ end
 function AI_ESCORT:_FlightSmoke( Color, Message )
 
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Core.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       if EscortGroup:IsAir() then
         self:_Smoke( EscortGroup, Color, Message )
@@ -1587,7 +1598,7 @@ end
 function AI_ESCORT:_FlightSwitchReportNearbyTargets( ReportTargets )
 
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Core.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       if EscortGroup:IsAir() then
         self:_EscortSwitchReportNearbyTargets( EscortGroup, ReportTargets )
@@ -1679,7 +1690,7 @@ function AI_ESCORT:_ScanTargets( ScanDuration )
 
 end
 
---- @param Wrapper.Group#GROUP EscortGroup
+-- @param Wrapper.Group#GROUP EscortGroup
 -- @param #AI_ESCORT self
 function AI_ESCORT.___Resume( EscortGroup, self )
 
@@ -1701,7 +1712,7 @@ function AI_ESCORT.___Resume( EscortGroup, self )
 end
 
 
---- @param #AI_ESCORT self
+-- @param #AI_ESCORT self
 -- @param Wrapper.Group#GROUP EscortGroup
 -- @param #number WayPoint
 function AI_ESCORT:_ResumeMission( EscortGroup, WayPoint )
@@ -1723,7 +1734,7 @@ function AI_ESCORT:_ResumeMission( EscortGroup, WayPoint )
 end
 
 
---- @param #AI_ESCORT self
+-- @param #AI_ESCORT self
 -- @param Wrapper.Group#GROUP EscortGroup The escort group that will attack the detected item.
 -- @param Functional.Detection#DETECTION_BASE.DetectedItem DetectedItem
 function AI_ESCORT:_AttackTarget( EscortGroup, DetectedItem )
@@ -1743,7 +1754,7 @@ function AI_ESCORT:_AttackTarget( EscortGroup, DetectedItem )
     local AttackUnitTasks = {}
 
     DetectedSet:ForEachUnit(
-      --- @param Wrapper.Unit#UNIT DetectedUnit
+      -- @param Wrapper.Unit#UNIT DetectedUnit
       function( DetectedUnit, Tasks )
         if DetectedUnit:IsAlive() then
           AttackUnitTasks[#AttackUnitTasks+1] = EscortGroup:TaskAttackUnit( DetectedUnit )
@@ -1767,7 +1778,7 @@ function AI_ESCORT:_AttackTarget( EscortGroup, DetectedItem )
     local Tasks = {}
 
     DetectedSet:ForEachUnit(
-      --- @param Wrapper.Unit#UNIT DetectedUnit
+      -- @param Wrapper.Unit#UNIT DetectedUnit
       function( DetectedUnit, Tasks )
         if DetectedUnit:IsAlive() then
           Tasks[#Tasks+1] = EscortGroup:TaskFireAtPoint( DetectedUnit:GetVec2(), 50 )
@@ -1795,7 +1806,7 @@ end
 function AI_ESCORT:_FlightAttackTarget( DetectedItem )
 
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Core.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup, DetectedItem )
       if EscortGroup:IsAir() then
         self:_AttackTarget( EscortGroup, DetectedItem )
@@ -1842,7 +1853,7 @@ end
 
 
 --- 
---- @param #AI_ESCORT self
+-- @param #AI_ESCORT self
 -- @param Wrapper.Group#GROUP EscortGroup The escort group that will attack the detected item.
 -- @param Functional.Detection#DETECTION_BASE.DetectedItem DetectedItem
 function AI_ESCORT:_AssistTarget( EscortGroup, DetectedItem )
@@ -1854,7 +1865,7 @@ function AI_ESCORT:_AssistTarget( EscortGroup, DetectedItem )
   local Tasks = {}
 
   DetectedSet:ForEachUnit(
-    --- @param Wrapper.Unit#UNIT DetectedUnit
+    -- @param Wrapper.Unit#UNIT DetectedUnit
     function( DetectedUnit, Tasks )
       if DetectedUnit:IsAlive() then
         Tasks[#Tasks+1] = EscortGroup:TaskFireAtPoint( DetectedUnit:GetVec2(), 50 )
@@ -1881,7 +1892,7 @@ end
 
 function AI_ESCORT:_FlightROEHoldFire( EscortROEMessage )
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Wrapper.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       self:_ROE( EscortGroup, EscortGroup.OptionROEHoldFire, EscortROEMessage )
     end
@@ -1890,7 +1901,7 @@ end
 
 function AI_ESCORT:_FlightROEOpenFire( EscortROEMessage )
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Wrapper.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       self:_ROE( EscortGroup, EscortGroup.OptionROEOpenFire, EscortROEMessage )
     end
@@ -1899,7 +1910,7 @@ end
 
 function AI_ESCORT:_FlightROEReturnFire( EscortROEMessage )
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Wrapper.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       self:_ROE( EscortGroup, EscortGroup.OptionROEReturnFire, EscortROEMessage )
     end
@@ -1908,7 +1919,7 @@ end
 
 function AI_ESCORT:_FlightROEWeaponFree( EscortROEMessage )
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Wrapper.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       self:_ROE( EscortGroup, EscortGroup.OptionROEWeaponFree, EscortROEMessage )
     end
@@ -1924,7 +1935,7 @@ end
 
 function AI_ESCORT:_FlightROTNoReaction( EscortROTMessage )
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Wrapper.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       self:_ROT( EscortGroup, EscortGroup.OptionROTNoReaction, EscortROTMessage )
     end
@@ -1933,7 +1944,7 @@ end
 
 function AI_ESCORT:_FlightROTPassiveDefense( EscortROTMessage )
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Wrapper.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       self:_ROT( EscortGroup, EscortGroup.OptionROTPassiveDefense, EscortROTMessage )
     end
@@ -1942,7 +1953,7 @@ end
 
 function AI_ESCORT:_FlightROTEvadeFire( EscortROTMessage )
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Wrapper.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       self:_ROT( EscortGroup, EscortGroup.OptionROTEvadeFire, EscortROTMessage )
     end
@@ -1951,7 +1962,7 @@ end
 
 function AI_ESCORT:_FlightROTVertical( EscortROTMessage )
   self.EscortGroupSet:ForEachGroupAlive(
-    --- @param Wrapper.Group#GROUP EscortGroup
+    -- @param Wrapper.Group#GROUP EscortGroup
     function( EscortGroup )
       self:_ROT( EscortGroup, EscortGroup.OptionROTVertical, EscortROTMessage )
     end
@@ -2178,5 +2189,3 @@ function AI_ESCORT:_FlightReportTargetsScheduler()
   
   return false
 end
-
-

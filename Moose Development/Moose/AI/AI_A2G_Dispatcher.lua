@@ -1,4 +1,4 @@
---- **AI** - Create an automated A2G defense system based on a detection network of reconnaissance vehicles and air units, coordinating SEAD, BAI and CAS operations.
+--- **AI** - Create an automated A2G defense system with reconnaissance units, coordinating SEAD, BAI and CAS operations.
 -- 
 -- ===
 -- 
@@ -24,7 +24,7 @@
 -- 
 -- ## Missions:
 -- 
--- [AID-A2G - AI A2G Dispatching](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AID%20-%20AI%20Dispatching/AID-A2G%20-%20AI%20A2G%20Dispatching)
+-- [AID-A2G - AI A2G Dispatching](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AI/AI_A2G_Dispatcher)
 -- 
 -- ===
 -- 
@@ -253,7 +253,12 @@
 -- 
 -- **The default grouping is 1. That means, that each spawned defender will act individually.**
 -- But you can specify a number between 1 and 4, so that the defenders will act as a group.
+--
+-- # Developer Note
 -- 
+-- Note while this class still works, it is no longer supported as the original author stopped active development of MOOSE
+-- Therefore, this class is considered to be deprecated
+--
 -- ===
 -- 
 -- ### Author: **FlightControl** rework of GCICAP + introduction of new concepts (squadrons).
@@ -291,8 +296,6 @@ do -- AI_A2G_DISPATCHER
   -- 
   -- ## 1. AI\_A2G\_DISPATCHER constructor:
   -- 
-  -- ![Banner Image](..\Presentations\AI_A2G_DISPATCHER\AI_A2G_DISPATCHER-ME_1.JPG)
-  -- 
   -- 
   -- The @{#AI_A2G_DISPATCHER.New}() method creates a new AI_A2G_DISPATCHER instance.
   -- 
@@ -305,8 +308,6 @@ do -- AI_A2G_DISPATCHER
   -- 
   -- A reconnaissance network, is used to detect enemy ground targets, 
   -- potentially group them into areas, and to understand the position, level of threat of the enemy.
-  -- 
-  -- ![Banner Image](..\Presentations\AI_A2G_DISPATCHER\Dia5.JPG)
   -- 
   -- As explained in the introduction, depending on the type of mission you want to achieve, different types of units can be applied to detect ground enemy targets.
   -- Ground based units are very useful to act as a reconnaissance, but they lack sometimes the visibility to detect targets at greater range.
@@ -681,8 +682,6 @@ do -- AI_A2G_DISPATCHER
   -- 
   -- Use the method @{#AI_A2G_DISPATCHER.SetSquadronGrouping}() to set the grouping of aircraft when spawned in.
   -- 
-  -- ![Banner Image](..\Presentations\AI_A2G_DISPATCHER\Dia12.JPG)
-  -- 
   -- In the case of **on call** engagement, the @{#AI_A2G_DISPATCHER.SetSquadronGrouping}() method has additional behaviour.
   -- When there aren't enough patrol flights airborne, a on call will be initiated for the remaining
   -- targets to be engaged. Depending on the grouping parameter, the spawned flights for on call aircraft are grouped into this setting.   
@@ -695,8 +694,6 @@ do -- AI_A2G_DISPATCHER
   -- 
   -- The effectiveness can be set with the **overhead parameter**. This is a number that is used to calculate the amount of Units that dispatching command will allocate to GCI in surplus of detected amount of units.
   -- The **default value** of the overhead parameter is 1.0, which means **equal balance**.
-  -- 
-  -- ![Banner Image](..\Presentations\AI_A2G_DISPATCHER\Dia11.JPG)
   -- 
   -- However, depending on the (type of) aircraft (strength and payload) in the squadron and the amount of resources available, this parameter can be changed.
   -- 
@@ -843,8 +840,6 @@ do -- AI_A2G_DISPATCHER
   -- 
   -- For example, the following setup will set the default refuel tanker to "Tanker":
   -- 
-  -- ![Banner Image](..\Presentations\AI_A2G_DISPATCHER\AI_A2G_DISPATCHER-ME_11.JPG)
-  -- 
   --      -- Set the default tanker for refuelling to "Tanker", when the default fuel threshold has reached 90% fuel left.
   --      A2GDispatcher:SetDefaultFuelThreshold( 0.9 )
   --      A2GDispatcher:SetDefaultTanker( "Tanker" )
@@ -951,7 +946,7 @@ do -- AI_A2G_DISPATCHER
   AI_A2G_DISPATCHER.DefenseQueue = {}
   
   --- Defense approach types.
-  -- @type #AI_A2G_DISPATCHER.DefenseApproach
+  -- @type AI_A2G_DISPATCHER.DefenseApproach
   AI_A2G_DISPATCHER.DefenseApproach = {
     Random = 1,
     Distance = 2,
@@ -1806,6 +1801,19 @@ do -- AI_A2G_DISPATCHER
     return DefenderSquadron
   end
 
+  --- Get a resource count from a specific squadron
+  -- @param #AI_A2G_DISPATCHER self
+  -- @param #string Squadron Name of the squadron.
+  -- @return #number Number of airframes available or nil if the squadron does not exist
+  function AI_A2G_DISPATCHER:QuerySquadron(Squadron)
+    local Squadron = self:GetSquadron(Squadron)
+    if Squadron.ResourceCount then
+      self:T2(string.format("%s = %s",Squadron.Name,Squadron.ResourceCount))
+      return Squadron.ResourceCount
+    end
+    self:F({Squadron = Squadron.Name,SquadronResourceCount = Squadron.ResourceCount})
+    return nil
+  end
   
   --- Set the Squadron visible before startup of the dispatcher.
   -- All planes will be spawned as uncontrolled on the parking spot.
@@ -1839,7 +1847,7 @@ do -- AI_A2G_DISPATCHER
   --- Check if the Squadron is visible before startup of the dispatcher.
   -- @param #AI_A2G_DISPATCHER self
   -- @param #string SquadronName The squadron name.
-  -- @return #bool true if visible.
+  -- @return #boolean true if visible.
   -- @usage
   -- 
   --        -- Set the Squadron visible before startup of dispatcher.

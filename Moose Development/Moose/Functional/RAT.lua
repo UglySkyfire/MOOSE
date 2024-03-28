@@ -33,22 +33,17 @@
 --
 -- ===
 --
--- ## Missions:
+-- ## Additional Material:
 --
--- ### [RAT - Random Air Traffic](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/RAT%20-%20Random%20Air%20Traffic)
---
--- ===
---
--- # YouTube Channel
---
--- ### [MOOSE YouTube Channel](https://www.youtube.com/channel/UCjrA9j5LQoWsG4SpS8i79Qg)
--- ### [MOOSE - RAT - Random Air Traffic](https://www.youtube.com/playlist?list=PL7ZUrU4zZUl0u4Zxywtg-mx_ov4vi68CO)
+-- * **Demo Missions:** [GitHub](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/Functional/RAT)
+-- * **YouTube videos:** [Random Air Traffic](https://www.youtube.com/playlist?list=PL7ZUrU4zZUl0u4Zxywtg-mx_ov4vi68CO)
+-- * **Guides:** None
 --
 -- ===
 --
--- ### Author: **[funkyfranky](https://forums.eagle.ru/member.php?u=115026)**
+-- ### Author: **funkyfranky**
 --
--- ### Contributions: [FlightControl](https://forums.eagle.ru/member.php?u=89536)
+-- ### Contributions: FlightControl
 --
 -- ===
 -- @module Functional.RAT
@@ -170,7 +165,7 @@
 --
 -- * A specific departure and/or destination airport can be chosen.
 -- * Valid coalitions can be set, e.g. only red, blue or neutral, all three "colours".
--- * It is possible to start in air within a zone defined in the mission editor or within a zone above an airport of the map.
+-- * It is possible to start in air within a zone or within a zone above an airport of the map.
 --
 -- ## Flight Plan
 --
@@ -225,7 +220,7 @@
 --
 -- * Landing: When an aircraft tries to land at an airport where it does not have a valid parking spot, it is immidiately despawned the moment its wheels touch the runway, i.e.
 -- when a landing event is triggered. This leads to the loss of the RAT aircraft. On possible way to circumvent the this problem is to let another RAT aircraft spawn at landing
--- and not when it shuts down its engines. See the @{RAT.RespawnAfterLanding}() function.
+-- and not when it shuts down its engines. See the @{#RAT.RespawnAfterLanding}() function.
 -- * Spawning: When a big aircraft is dynamically spawned on a small airbase a few things can go wrong. For example, it could be spawned at a parking spot with a shelter.
 -- Or it could be damaged by a scenery object when it is taxiing out to the runway, or it could overlap with other aircraft on parking spots near by.
 --
@@ -1179,13 +1174,13 @@ function RAT:SetTakeoffAir()
   return self
 end
 
---- Set possible departure ports. This can be an airport or a zone defined in the mission editor.
+--- Set possible departure ports. This can be an airport or a zone.
 -- @param #RAT self
 -- @param #string departurenames Name or table of names of departure airports or zones.
 -- @return #RAT RAT self object.
 -- @usage RAT:SetDeparture("Sochi-Adler") will spawn RAT objects at Sochi-Adler airport.
 -- @usage RAT:SetDeparture({"Sochi-Adler", "Gudauta"}) will spawn RAT aircraft radomly at Sochi-Adler or Gudauta airport.
--- @usage RAT:SetDeparture({"Zone A", "Gudauta"}) will spawn RAT aircraft in air randomly within Zone A, which has to be defined in the mission editor, or within a zone around Gudauta airport. Note that this also requires RAT:takeoff("air") to be set.
+-- @usage RAT:SetDeparture({"Zone A", "Gudauta"}) will spawn RAT aircraft in air randomly within Zone A, or within a zone around Gudauta airport. Note that this also requires RAT:takeoff("air") to be set.
 function RAT:SetDeparture(departurenames)
   self:F2(departurenames)
 
@@ -2474,11 +2469,11 @@ end
 -- @param #RAT self
 -- @param #number takeoff Takeoff type. Could also be air start.
 -- @param #number landing Landing type. Could also be a destination in air.
--- @param Wrapper.Airport#AIRBASE _departure (Optional) Departure airbase.
--- @param Wrapper.Airport#AIRBASE _destination (Optional) Destination airbase.
+-- @param Wrapper.Airbase#AIRBASE _departure (Optional) Departure airbase.
+-- @param Wrapper.Airbase#AIRBASE _destination (Optional) Destination airbase.
 -- @param #table _waypoint Initial waypoint.
--- @return Wrapper.Airport#AIRBASE Departure airbase.
--- @return Wrapper.Airport#AIRBASE Destination airbase.
+-- @return Wrapper.Airbase#AIRBASE Departure airbase.
+-- @return Wrapper.Airbase#AIRBASE Destination airbase.
 -- @return #table Table of flight plan waypoints.
 -- @return #nil If no valid departure or destination airport could be found.
 function RAT:_SetRoute(takeoff, landing, _departure, _destination, _waypoint)
@@ -2537,7 +2532,7 @@ function RAT:_SetRoute(takeoff, landing, _departure, _destination, _waypoint)
       end
     elseif self:_ZoneExists(_departure) then
       -- If it's not an airport, check whether it's a zone.
-      departure=ZONE:New(_departure)
+      departure=ZONE:FindByName(_departure)
     else
       local text=string.format("ERROR! Specified departure airport %s does not exist for %s.", _departure, self.alias)
       self:E(RAT.id..text)
@@ -2635,7 +2630,7 @@ function RAT:_SetRoute(takeoff, landing, _departure, _destination, _waypoint)
       end
 
     elseif self:_ZoneExists(_destination) then
-      destination=ZONE:New(_destination)
+      destination=ZONE:FindByName(_destination)
     else
       local text=string.format("ERROR: Specified destination airport/zone %s does not exist for %s!", _destination, self.alias)
       self:E(RAT.id.."ERROR: "..text)
@@ -3142,7 +3137,7 @@ function RAT:_PickDeparture(takeoff)
         end
       elseif self:_ZoneExists(name) then
         if takeoff==RAT.wp.air then
-          dep=ZONE:New(name)
+          dep=ZONE:FindByName(name)
         else
           self:E(RAT.id..string.format("ERROR! Takeoff is not in air. Cannot use %s as departure.", name))
         end
@@ -3254,7 +3249,7 @@ function RAT:_PickDestination(departure, q, minrange, maxrange, random, landing)
           end
         elseif self:_ZoneExists(name) then
           if landing==RAT.wp.air then
-            dest=ZONE:New(name)
+            dest=ZONE:FindByName(name)
           else
             self:E(RAT.id..string.format("ERROR! Landing is not in air. Cannot use zone %s as destination!", name))
           end
@@ -3483,7 +3478,7 @@ function RAT:Status(message, forID)
     -- Get group.
     local group=ratcraft.group  --Wrapper.Group#GROUP
 
-    if group and group:IsAlive() then
+    if group and group:IsAlive() and (group:GetCoordinate() or group:GetVec3()) then
       nalive=nalive+1
 
       -- Gather some information.
@@ -3491,8 +3486,11 @@ function RAT:Status(message, forID)
       local life=self:_GetLife(group)
       local fuel=group:GetFuel()*100.0
       local airborne=group:InAir()
-      local coords=group:GetCoordinate()
-      local alt=coords.y or 1000
+      local coords=group:GetCoordinate() or group:GetVec3()
+      local alt=1000
+      if coords then
+        alt=coords.y or 1000
+      end  
       --local vel=group:GetVelocityKMH()
       local departure=ratcraft.departure:GetName()
       local destination=ratcraft.destination:GetName()
@@ -4602,7 +4600,7 @@ function RAT:_TaskHolding(P1, Altitude, Speed, Duration)
 end
 
 --- Function which is called after passing every waypoint. Info on waypoint is given and special functions are executed.
--- @param Core.Group#GROUP group Group of aircraft.
+-- @param Wrapper.Group#GROUP group Group of aircraft.
 -- @param #RAT rat RAT object.
 -- @param #number wp Waypoint index. Running number of the waypoints. Determines the actions to be executed.
 function RAT._WaypointFunction(group, rat, wp)
@@ -4927,12 +4925,12 @@ function RAT:_AirportExists(name)
   return false
 end
 
---- Test if a trigger zone defined in the mission editor exists.
+--- Test if a zone exists.
 -- @param #RAT self
 -- @param #string name
 -- @return #boolean True if zone exsits, false otherwise.
 function RAT:_ZoneExists(name)
-  local z=trigger.misc.getZone(name)
+  local z=ZONE:FindByName(name) --trigger.misc.getZone(name) as suggested by @Viking on MOOSE discord #rat
   if z then
     return true
   end
@@ -5490,7 +5488,7 @@ function RAT:_ATCInit(airports_map)
   if not RAT.ATC.init then
     local text
     text="Starting RAT ATC.\nSimultanious = "..RAT.ATC.Nclearance.."\n".."Delay        = "..RAT.ATC.delay
-	  BASE:T(RAT.id..text)
+    BASE:T(RAT.id..text)
     RAT.ATC.init=true
     for _,ap in pairs(airports_map) do
       local name=ap:GetName()
@@ -5671,9 +5669,9 @@ function RAT:_ATCClearForLanding(airport, flight)
 
   -- Debug message.
   local text1=string.format("ATC %s: Flight %s cleared for landing (flag=%d).", airport, flight, flagvalue)
-	if string.find(flight,"#") then
-		flight =  string.match(flight,"^(.+)#")
-	end
+  if string.find(flight,"#") then
+    flight =  string.match(flight,"^(.+)#")
+  end
   local text2=string.format("ATC %s: Flight %s you are cleared for landing.", airport, flight)
   BASE:T( RAT.id..text1)
   MESSAGE:New(text2, 10):ToAllIf(RAT.ATC.messages)
@@ -5716,9 +5714,9 @@ function RAT:_ATCFlightLanded(name)
     local text1=string.format("ATC %s: Flight %s landed. Tholding = %i:%02d, Tfinal = %i:%02d.", dest, name, Thold/60, Thold%60, Tfinal/60, Tfinal%60)
     local text2=string.format("ATC %s: Number of flights still on final %d.", dest, RAT.ATC.airport[dest].Nonfinal)
     local text3=string.format("ATC %s: Traffic report: Number of planes landed in total %d. Flights/hour = %3.2f.", dest, RAT.ATC.airport[dest].traffic, TrafficPerHour)
-	if string.find(name,"#") then
-		name =  string.match(name,"^(.+)#")
-	end
+  if string.find(name,"#") then
+    name =  string.match(name,"^(.+)#")
+  end
     local text4=string.format("ATC %s: Flight %s landed. Welcome to %s.", dest, name, dest)
     BASE:T(RAT.id..text1)
     BASE:T(RAT.id..text2)
@@ -5832,6 +5830,7 @@ RATMANAGER={
   rat={},
   name={},
   alive={},
+  planned={},
   min={},
   nrat=0,
   ntot=nil,
@@ -5880,6 +5879,7 @@ function RATMANAGER:Add(ratobject,min)
 
   self.rat[self.nrat]=ratobject
   self.alive[self.nrat]=0
+  self.planned[self.nrat]=0
   self.name[self.nrat]=ratobject.alias
   self.min[self.nrat]=min or 1
 
@@ -6020,9 +6020,23 @@ function RATMANAGER:_Manage()
   for i=1,self.nrat do
     for j=1,N[i] do
       time=time+self.dTspawn
-      SCHEDULER:New(nil, RAT._SpawnWithRoute, {self.rat[i]}, time)
+      self.planned[i]=self.planned[i]+1
+      SCHEDULER:New(nil, RATMANAGER._Spawn, {self, i}, time)
     end
   end
+end
+
+--- Instantly starts the RAT manager and spawns the initial random number RAT groups for each RAT object.
+-- @param #RATMANAGER self
+-- @param #RATMANAGER RATMANAGER self object.
+-- @param #number i Index.
+function RATMANAGER:_Spawn(i)
+
+  local rat=self.rat[i] --#RAT
+  
+  rat:_SpawnWithRoute()
+  self.planned[i]=self.planned[i]-1
+
 end
 
 --- Counts the number of alive RAT objects.
@@ -6053,7 +6067,7 @@ function RATMANAGER:_Count()
     ntotal=ntotal+n
 
     -- Debug output.
-    local text=string.format("Number of alive groups of %s = %d", self.name[i], n)
+    local text=string.format("Number of alive groups of %s = %d, planned=%d", self.name[i], n, self.planned[i])
     self:T(RATMANAGER.id..text)
   end
 
@@ -6083,9 +6097,10 @@ function RATMANAGER:_RollDice(nrat,ntot,min,alive)
   local M={}
   local P={}
   for i=1,nrat do
+    local a=alive[i]+self.planned[i]
     N[#N+1]=0
-    M[#M+1]=math.max(alive[i], min[i])
-    P[#P+1]=math.max(min[i]-alive[i],0)
+    M[#M+1]=math.max(a, min[i])
+    P[#P+1]=math.max(min[i]-a,0)
   end
 
   -- Min/max group arrays.
@@ -6102,7 +6117,7 @@ function RATMANAGER:_RollDice(nrat,ntot,min,alive)
   -- Number of new groups to be added.
   local nnew=ntot
   for i=1,nrat do
-    nnew=nnew-alive[i]
+    nnew=nnew-alive[i]-self.planned[i]
   end
 
   for i=1,nrat-1 do
@@ -6134,7 +6149,7 @@ function RATMANAGER:_RollDice(nrat,ntot,min,alive)
     end
 
     -- Debug info
-    self:T3(string.format("RATMANAGER: i=%d, alive=%d, min=%d, mini=%d, maxi=%d, add=%d, sumN=%d, sumP=%d", j, alive[j], min[j], mini[j], maxi[j], N[j],sN, sP))
+    self:T3(string.format("RATMANAGER: i=%d, alive=%d, planned=%d, min=%d, mini=%d, maxi=%d, add=%d, sumN=%d, sumP=%d", j, alive[j], self.planned[i], min[j], mini[j], maxi[j], N[j],sN, sP))
 
   end
 
@@ -6149,7 +6164,7 @@ function RATMANAGER:_RollDice(nrat,ntot,min,alive)
   -- Debug info
   local text=RATMANAGER.id.."\n"
   for i=1,nrat do
-    text=text..string.format("%s: i=%d, alive=%d, min=%d, mini=%d, maxi=%d, add=%d\n", self.name[i], i, alive[i], min[i], mini[i], maxi[i], N[i])
+    text=text..string.format("%s: i=%d, alive=%d, planned=%d, min=%d, mini=%d, maxi=%d, add=%d\n", self.name[i], i, alive[i], self.planned[i], min[i], mini[i], maxi[i], N[i])
   end
   text=text..string.format("Total # of groups to add = %d", sum(N, done))
   self:T(text)

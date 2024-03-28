@@ -86,7 +86,7 @@
 -- There are also dispatchers that make AI work together to transport cargo automatically!!!
 --   
 --   - @{AI.AI_Cargo_Dispatcher_APC} derived classes will create for your dynamic cargo handlers controlled by AI ground vehicle groups (APCs) to transport cargo between sites.
---   - @{AI.AI_Cargo_Dispatcher_Helicopters} derived classes will create for your dynamic cargo handlers controlled by AI helicopter groups to transport cargo between sites.
+--   - @{AI.AI_Cargo_Dispatcher_Helicopter} derived classes will create for your dynamic cargo handlers controlled by AI helicopter groups to transport cargo between sites.
 -- 
 -- ## 3.3) Cargo transportation tasking.
 --   
@@ -233,7 +233,12 @@
 --      Note that this option is optional, so can be omitted. The default value of the RR is 250 meters.
 --    * **NR=** Provide the maximum range in meters when the cargo units will be boarded within the carrier during boarding.
 --      Note that this option is optional, so can be omitted. The default value of the RR is 10 meters.
+--
+-- # Developer Note
 -- 
+-- Note while this class still works, it is no longer supported as the original author stopped active development of MOOSE
+-- Therefore, this class is considered to be deprecated
+--
 -- ===
 -- 
 -- ### Author: **FlightControl**
@@ -365,7 +370,7 @@ CARGOS = {}
 
 do -- CARGO
 
-  --- @type CARGO
+  -- @type CARGO
   -- @extends Core.Fsm#FSM_PROCESS
   -- @field #string Type A string defining the type of the cargo. eg. Engineers, Equipment, Screwdrivers.
   -- @field #string Name A string defining the name of the cargo. The name is the unique identifier of the cargo.
@@ -393,7 +398,7 @@ do -- CARGO
   -- 
   --   * AI Armoured Personnel Carriers to transport cargo and engage in battles, using the @{AI.AI_Cargo_APC#AI_CARGO_APC} class.
   --   * AI Helicopters to transport cargo, using the @{AI.AI_Cargo_Helicopter#AI_CARGO_HELICOPTER} class.
-  --   * AI Planes to transport cargo, using the @{AI.AI_Cargo_Plane#AI_CARGO_PLANE} class.
+  --   * AI Planes to transport cargo, using the @{AI.AI_Cargo_Airplane#AI_CARGO_AIRPLANE} class.
   --   * AI Ships is planned.
   -- 
   -- The above cargo classes are also used by the TASK\_CARGO\_ classes to allow human players to transport cargo as part of a tasking:
@@ -428,7 +433,7 @@ do -- CARGO
     Reported = {},
   }
 
-  --- @type CARGO.CargoObjects
+  -- @type CARGO.CargoObjects
   -- @map < #string, Wrapper.Positionable#POSITIONABLE > The alive POSITIONABLE objects representing the the cargo.
 
   --- CARGO Constructor. This class is an abstract class and should not be instantiated.
@@ -442,7 +447,7 @@ do -- CARGO
   function CARGO:New( Type, Name, Weight, LoadRadius, NearRadius ) --R2.1
 
     local self = BASE:Inherit( self, FSM:New() ) -- #CARGO
-    self:F( { Type, Name, Weight, LoadRadius, NearRadius } )
+    self:T( { Type, Name, Weight, LoadRadius, NearRadius } )
 
     self:SetStartState( "UnLoaded" )
     self:AddTransition( { "UnLoaded", "Boarding" }, "Board", "Boarding" )
@@ -706,7 +711,7 @@ do -- CARGO
   -- @param #CARGO self
   -- @return #CARGO
   function CARGO:Spawn( PointVec2 )
-    self:F()
+    self:T()
 
   end
 
@@ -807,7 +812,7 @@ do -- CARGO
   -- @param Core.Point#COORDINATE Coordinate
   -- @return #boolean true if the CargoGroup is within the loading radius.
   function CARGO:IsInLoadRadius( Coordinate )
-    self:F( { Coordinate, LoadRadius = self.LoadRadius } )
+    self:T( { Coordinate, LoadRadius = self.LoadRadius } )
 
     local Distance = 0
     if self:IsUnLoaded() then
@@ -827,7 +832,7 @@ do -- CARGO
   -- @param Core.Point#COORDINATE Coordinate
   -- @return #boolean true if the Cargo can report itself.
   function CARGO:IsInReportRadius( Coordinate )
-    self:F( { Coordinate } )
+    self:T( { Coordinate } )
 
     local Distance = 0
     if self:IsUnLoaded() then
@@ -848,23 +853,23 @@ do -- CARGO
   -- @param #number NearRadius The radius when the cargo will board the Carrier (to avoid collision).
   -- @return #boolean
   function CARGO:IsNear( Coordinate, NearRadius )
-    --self:F( { PointVec2 = PointVec2, NearRadius = NearRadius } )
+    --self:T( { PointVec2 = PointVec2, NearRadius = NearRadius } )
 
     if self.CargoObject:IsAlive() then
       --local Distance = PointVec2:Get2DDistance( self.CargoObject:GetPointVec2() )
-      --self:F( { CargoObjectName = self.CargoObject:GetName() } )
-      --self:F( { CargoObjectVec2 = self.CargoObject:GetVec2() } )
-      --self:F( { PointVec2 = PointVec2:GetVec2() } )
+      --self:T( { CargoObjectName = self.CargoObject:GetName() } )
+      --self:T( { CargoObjectVec2 = self.CargoObject:GetVec2() } )
+      --self:T( { PointVec2 = PointVec2:GetVec2() } )
       local Distance = Coordinate:Get2DDistance( self.CargoObject:GetCoordinate() )
-      --self:F( { Distance = Distance, NearRadius = NearRadius or "nil" }  )
+      --self:T( { Distance = Distance, NearRadius = NearRadius or "nil" }  )
 
       if Distance <= NearRadius then
-        --self:F( { PointVec2 = PointVec2, NearRadius = NearRadius, IsNear = true } )
+        --self:T( { PointVec2 = PointVec2, NearRadius = NearRadius, IsNear = true } )
         return true
       end
     end
 
-    --self:F( { PointVec2 = PointVec2, NearRadius = NearRadius, IsNear = false } )
+    --self:T( { PointVec2 = PointVec2, NearRadius = NearRadius, IsNear = false } )
     return false
   end
 
@@ -873,12 +878,12 @@ do -- CARGO
   -- @param Core.Zone#ZONE_BASE Zone
   -- @return #boolean **true** if cargo is in the Zone, **false** if cargo is not in the Zone.
   function CARGO:IsInZone( Zone )
-    --self:F( { Zone } )
+    --self:T( { Zone } )
 
     if self:IsLoaded() then
       return Zone:IsPointVec2InZone( self.CargoCarrier:GetPointVec2() )
     else
-      --self:F( { Size = self.CargoObject:GetSize(), Units = self.CargoObject:GetUnits() } )
+      --self:T( { Size = self.CargoObject:GetSize(), Units = self.CargoObject:GetUnits() } )
       if self.CargoObject:GetSize() ~= 0 then
         return Zone:IsPointVec2InZone( self.CargoObject:GetPointVec2() )
       else
@@ -975,7 +980,7 @@ do -- CARGO
 
   --- Report to a Carrier Group with a Flaring signal.
   -- @param #CARGO self
-  -- @param Utils#UTILS.FlareColor FlareColor the color of the flare.
+  -- @param Utilities.Utils#UTILS.FlareColor FlareColor the color of the flare.
   -- @return #CARGO
   function CARGO:ReportFlare( FlareColor )
 
@@ -984,7 +989,7 @@ do -- CARGO
 
   --- Report to a Carrier Group with a Smoking signal.
   -- @param #CARGO self
-  -- @param Utils#UTILS.SmokeColor SmokeColor the color of the smoke.
+  -- @param Utilities.Utils#UTILS.SmokeColor SmokeColor the color of the smoke.
   -- @return #CARGO
   function CARGO:ReportSmoke( SmokeColor )
 
@@ -1029,7 +1034,7 @@ end -- CARGO
 
 do -- CARGO_REPRESENTABLE
 
-  --- @type CARGO_REPRESENTABLE
+  -- @type CARGO_REPRESENTABLE
   -- @extends #CARGO
   -- @field test
 
@@ -1051,7 +1056,7 @@ do -- CARGO_REPRESENTABLE
 
     -- Inherit CARGO.
     local self = BASE:Inherit( self, CARGO:New( Type, Name, 0, LoadRadius, NearRadius ) ) -- #CARGO_REPRESENTABLE
-    self:F( { Type, Name, LoadRadius, NearRadius } )
+    self:T( { Type, Name, LoadRadius, NearRadius } )
 
     -- Descriptors.
     local Desc=CargoObject:GetDesc()
@@ -1081,7 +1086,7 @@ do -- CARGO_REPRESENTABLE
   function CARGO_REPRESENTABLE:Destroy()
 
     -- Cargo objects are deleted from the _DATABASE and SET_CARGO objects.
-    self:F( { CargoName = self:GetName() } )
+    self:T( { CargoName = self:GetName() } )
     --_EVENTDISPATCHER:CreateEventDeleteCargo( self )
 
     return self
@@ -1118,12 +1123,12 @@ do -- CARGO_REPRESENTABLE
     CoordinateZone:Scan( { Object.Category.UNIT } )
     for _, DCSUnit in pairs( CoordinateZone:GetScannedUnits() ) do
       local NearUnit = UNIT:Find( DCSUnit )
-      self:F({NearUnit=NearUnit})
+      self:T({NearUnit=NearUnit})
       local NearUnitCoalition = NearUnit:GetCoalition()
       local CargoCoalition = self:GetCoalition()
       if NearUnitCoalition == CargoCoalition then
         local Attributes = NearUnit:GetDesc()
-        self:F({Desc=Attributes})
+        self:T({Desc=Attributes})
         if NearUnit:HasAttribute( "Trucks" ) then
           MESSAGE:New( Message, 20, NearUnit:GetCallsign() .. " reporting - Cargo " .. self:GetName() ):ToGroup( TaskGroup )
           break
@@ -1137,7 +1142,7 @@ end -- CARGO_REPRESENTABLE
 
 do -- CARGO_REPORTABLE
 
-    --- @type CARGO_REPORTABLE
+    -- @type CARGO_REPORTABLE
     -- @extends #CARGO
     CARGO_REPORTABLE = {
       ClassName = "CARGO_REPORTABLE"
@@ -1153,7 +1158,7 @@ do -- CARGO_REPORTABLE
   -- @return #CARGO_REPORTABLE
   function CARGO_REPORTABLE:New( Type, Name, Weight, LoadRadius, NearRadius )
     local self = BASE:Inherit( self, CARGO:New( Type, Name, Weight, LoadRadius, NearRadius ) ) -- #CARGO_REPORTABLE
-    self:F( { Type, Name, Weight, LoadRadius, NearRadius } )
+    self:T( { Type, Name, Weight, LoadRadius, NearRadius } )
 
     return self
   end
@@ -1173,7 +1178,7 @@ end
 
 do -- CARGO_PACKAGE
 
-  --- @type CARGO_PACKAGE
+  -- @type CARGO_PACKAGE
   -- @extends #CARGO_REPRESENTABLE
   CARGO_PACKAGE = {
     ClassName = "CARGO_PACKAGE"
@@ -1190,7 +1195,7 @@ do -- CARGO_PACKAGE
 -- @return #CARGO_PACKAGE
 function CARGO_PACKAGE:New( CargoCarrier, Type, Name, Weight, LoadRadius, NearRadius )
   local self = BASE:Inherit( self, CARGO_REPRESENTABLE:New( CargoCarrier, Type, Name, Weight, LoadRadius, NearRadius ) ) -- #CARGO_PACKAGE
-  self:F( { Type, Name, Weight, LoadRadius, NearRadius } )
+  self:T( { Type, Name, Weight, LoadRadius, NearRadius } )
 
   self:T( CargoCarrier )
   self.CargoCarrier = CargoCarrier
@@ -1208,7 +1213,7 @@ end
 -- @param #number BoardDistance
 -- @param #number Angle
 function CARGO_PACKAGE:onafterOnBoard( From, Event, To, CargoCarrier, Speed, BoardDistance, LoadDistance, Angle )
-  self:F()
+  self:T()
 
   self.CargoInAir = self.CargoCarrier:InAir()
 
@@ -1241,7 +1246,7 @@ end
 -- @param Wrapper.Unit#UNIT CargoCarrier
 -- @return #boolean
 function CARGO_PACKAGE:IsNear( CargoCarrier )
-  self:F()
+  self:T()
 
   local CargoCarrierPoint = CargoCarrier:GetCoordinate()
 
@@ -1266,7 +1271,7 @@ end
 -- @param #number LoadDistance
 -- @param #number Angle
 function CARGO_PACKAGE:onafterOnBoarded( From, Event, To, CargoCarrier, Speed, BoardDistance, LoadDistance, Angle )
-  self:F()
+  self:T()
 
   if self:IsNear( CargoCarrier ) then
     self:__Load( 1, CargoCarrier, Speed, LoadDistance, Angle )
@@ -1287,7 +1292,7 @@ end
 -- @param #number Radius
 -- @param #number Angle
 function CARGO_PACKAGE:onafterUnBoard( From, Event, To, CargoCarrier, Speed, UnLoadDistance, UnBoardDistance, Radius, Angle )
-  self:F()
+  self:T()
 
   self.CargoInAir = self.CargoCarrier:InAir()
 
@@ -1326,7 +1331,7 @@ end
 -- @param Wrapper.Unit#UNIT CargoCarrier
 -- @param #number Speed
 function CARGO_PACKAGE:onafterUnBoarded( From, Event, To, CargoCarrier, Speed )
-  self:F()
+  self:T()
 
   if self:IsNear( CargoCarrier ) then
     self:__UnLoad( 1, CargoCarrier, Speed )
@@ -1345,7 +1350,7 @@ end
 -- @param #number LoadDistance
 -- @param #number Angle
 function CARGO_PACKAGE:onafterLoad( From, Event, To, CargoCarrier, Speed, LoadDistance, Angle )
-  self:F()
+  self:T()
 
   self.CargoCarrier = CargoCarrier
 
@@ -1373,7 +1378,7 @@ end
 -- @param #number Distance
 -- @param #number Angle
 function CARGO_PACKAGE:onafterUnLoad( From, Event, To, CargoCarrier, Speed, Distance, Angle )
-  self:F()
+  self:T()
 
   local StartPointVec2 = self.CargoCarrier:GetPointVec2()
   local CargoCarrierHeading = self.CargoCarrier:GetHeading() -- Get Heading of object in degrees.

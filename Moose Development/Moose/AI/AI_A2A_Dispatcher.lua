@@ -23,7 +23,7 @@
 --
 -- ## Missions:
 --
--- [AID-A2A - AI A2A Dispatching](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AID%20-%20AI%20Dispatching/AID-A2A%20-%20AI%20A2A%20Dispatching)
+-- [AID-A2A - AI A2A Dispatching](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AI/AI_A2A_Dispatcher)
 --
 -- ===
 --
@@ -177,6 +177,11 @@
 --
 -- **The default grouping is 1. That means, that each spawned defender will act individually.**
 --
+-- # Developer Note
+-- 
+-- Note while this class still works, it is no longer supported as the original author stopped active development of MOOSE
+-- Therefore, this class is considered to be deprecated
+--
 -- ===
 --
 -- ### Authors: **FlightControl** rework of GCICAP + introduction of new concepts (squadrons).
@@ -305,7 +310,7 @@ do -- AI_A2A_DISPATCHER
   -- Use the method @{#AI_A2A_DISPATCHER.SetEngageRadius}() to set a specific Engage Radius.
   -- **The Engage Radius is defined for ALL squadrons which are operational.**
   --
-  -- Demonstration Mission: [AID-019 - AI_A2A - Engage Range Test](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/release-2-2-pre/AID%20-%20AI%20Dispatching/AID-019%20-%20AI_A2A%20-%20Engage%20Range%20Test)
+  -- Demonstration Mission: [AID-019 - AI_A2A - Engage Range Test](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AI/AI_A2A_Dispatcher/AID-A2A-019%20-%20Engage%20Range%20Test)
   --
   -- In this example an Engage Radius is set to various values.
   --
@@ -328,7 +333,7 @@ do -- AI_A2A_DISPATCHER
   -- Use the method @{#AI_A2A_DISPATCHER.SetGciRadius}() to set a specific controlled ground intercept radius.
   -- **The Ground Controlled Intercept radius is defined for ALL squadrons which are operational.**
   --
-  -- Demonstration Mission: [AID-013 - AI_A2A - Intercept Test](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/release-2-2-pre/AID%20-%20AI%20Dispatching/AID-013%20-%20AI_A2A%20-%20Intercept%20Test)
+  -- Demonstration Mission: [AID-013 - AI_A2A - Intercept Test](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AI/AI_A2A_Dispatcher/AID-A2A-013%20-%20Intercept%20Test)
   --
   -- In these examples, the Gci Radius is set to various values:
   --
@@ -361,7 +366,7 @@ do -- AI_A2A_DISPATCHER
   -- it makes it easier sometimes for the mission maker to envisage where the red and blue territories roughly are.
   -- In a hot war the borders are effectively defined by the ground based radar coverage of a coalition.
   --
-  -- Demonstration Mission: [AID-009 - AI_A2A - Border Test](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/release-2-2-pre/AID%20-%20AI%20Dispatching/AID-009 - AI_A2A - Border Test)
+  -- Demonstration Mission: [AID-009 - AI_A2A - Border Test](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AI/AI_A2A_Dispatcher/AID-A2A-009%20-%20Border%20Test)
   --
   -- In this example a border is set for the CCCP A2A dispatcher:
   --
@@ -1228,7 +1233,7 @@ do -- AI_A2A_DISPATCHER
   --
   -- **Use the method @{#AI_A2A_DISPATCHER.SetEngageRadius}() to modify the default Engage Radius for ALL squadrons.**
   --
-  -- Demonstration Mission: [AID-019 - AI_A2A - Engage Range Test](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/release-2-2-pre/AID%20-%20AI%20Dispatching/AID-019%20-%20AI_A2A%20-%20Engage%20Range%20Test)
+  -- Demonstration Mission: [AID-019 - AI_A2A - Engage Range Test](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AI/AI_A2A_Dispatcher/AID-A2A-019%20-%20Engage%20Range%20Test)
   --
   -- @param #AI_A2A_DISPATCHER self
   -- @param #number EngageRadius (Optional, Default = 100000) The radius to report friendlies near the target.
@@ -1278,7 +1283,7 @@ do -- AI_A2A_DISPATCHER
   -- Use the method @{#AI_A2A_DISPATCHER.SetGciRadius}() to set a specific controlled ground intercept radius.
   -- **The Ground Controlled Intercept radius is defined for ALL squadrons which are operational.**
   --
-  -- Demonstration Mission: [AID-013 - AI_A2A - Intercept Test](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/release-2-2-pre/AID%20-%20AI%20Dispatching/AID-013%20-%20AI_A2A%20-%20Intercept%20Test)
+  -- Demonstration Mission: [AID-013 - AI_A2A - Intercept Test](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AI/AI_A2A_Dispatcher/AID-A2A-013%20-%20Intercept%20Test)
   --
   -- @param #AI_A2A_DISPATCHER self
   -- @param #number GciRadius (Optional, Default = 200000) The radius to ground control intercept detected targets from the nearest airbase.
@@ -1686,6 +1691,20 @@ do -- AI_A2A_DISPATCHER
     end
 
     return DefenderSquadron
+  end
+  
+  --- Get a resource count from a specific squadron
+  -- @param #AI_A2A_DISPATCHER self
+  -- @param #string Squadron Name of the squadron.
+  -- @return #number Number of airframes available or nil if the squadron does not exist
+  function AI_A2A_DISPATCHER:QuerySquadron(Squadron)
+    local Squadron = self:GetSquadron(Squadron)
+    if Squadron.ResourceCount then
+      self:T2(string.format("%s = %s",Squadron.Name,Squadron.ResourceCount))
+      return Squadron.ResourceCount
+    end
+    self:F({Squadron = Squadron.Name,SquadronResourceCount = Squadron.ResourceCount})
+    return nil
   end
 
   --- [DEPRECATED - Might create problems launching planes] Set the Squadron visible before startup of the dispatcher.
@@ -3238,7 +3257,8 @@ do -- AI_A2A_DISPATCHER
             end
           end
 
-          --- @param #AI_A2A_DISPATCHER self
+          --- AI_A2A_Fsm:onafterHome
+          -- @param #AI_A2A_DISPATCHER self
           function AI_A2A_Fsm:onafterHome( Defender, From, Event, To, Action )
             if Defender and Defender:IsAlive() then
               self:F( { "CAP Home", Defender:GetName() } )
@@ -3486,7 +3506,8 @@ do -- AI_A2A_DISPATCHER
                     Dispatcher:ClearDefenderTaskTarget( DefenderGroup )
                   end
 
-                  --- @param #AI_A2A_DISPATCHER self
+                  --- function Fsm:onafterLostControl
+                  -- @param #AI_A2A_DISPATCHER self
                   function Fsm:onafterLostControl( Defender, From, Event, To )
                     self:F( { "GCI LostControl", Defender:GetName() } )
                     self:GetParent( self ).onafterHome( self, Defender, From, Event, To )
@@ -3499,7 +3520,8 @@ do -- AI_A2A_DISPATCHER
                     end
                   end
 
-                  --- @param #AI_A2A_DISPATCHER self
+                  --- function Fsm:onafterHome
+                  -- @param #AI_A2A_DISPATCHER self
                   function Fsm:onafterHome( DefenderGroup, From, Event, To, Action )
                     self:F( { "GCI Home", DefenderGroup:GetName() } )
                     self:GetParent( self ).onafterHome( self, DefenderGroup, From, Event, To )
@@ -3940,7 +3962,7 @@ do
   --
   -- # Demo Missions
   --
-  -- ### [Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AID%20-%20AI%20Dispatching/AID-A2A%20-%20AI%20A2A%20Dispatching)
+  -- ### [Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AI/AI_A2A_Dispatcher)
   --
   -- ===
   --

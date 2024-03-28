@@ -12,8 +12,8 @@
 -- @module Utilities.Utils
 -- @image MOOSE.JPG
 
-
---- @type SMOKECOLOR
+---
+-- @type SMOKECOLOR
 -- @field Green
 -- @field Red
 -- @field White
@@ -22,7 +22,8 @@
 
 SMOKECOLOR = trigger.smokeColor -- #SMOKECOLOR
 
---- @type FLARECOLOR
+---
+-- @type FLARECOLOR
 -- @field Green
 -- @field Red
 -- @field White
@@ -43,7 +44,7 @@ BIGSMOKEPRESET = {
   HugeSmoke=8,
 }
 
---- DCS map as returned by env.mission.theatre.
+--- DCS map as returned by `env.mission.theatre`.
 -- @type DCSMAP
 -- @field #string Caucasus Caucasus map.
 -- @field #string Normandy Normandy map.
@@ -53,6 +54,7 @@ BIGSMOKEPRESET = {
 -- @field #string Syria Syria map.
 -- @field #string MarianaIslands Mariana Islands map.
 -- @field #string Falklands South Atlantic map.
+-- @field #string Sinai Sinai map.
 DCSMAP = {
   Caucasus="Caucasus",
   NTTR="Nevada",
@@ -62,6 +64,7 @@ DCSMAP = {
   Syria="Syria",
   MarianaIslands="MarianaIslands",
   Falklands="Falklands",
+  Sinai="SinaiMap"
 }
 
 
@@ -97,7 +100,10 @@ CALLSIGN={
     Texaco=1,
     Arco=2,
     Shell=3,
-  },
+    Navy_One=4,
+    Mauler=5,
+    Bloodhound=6,  
+    },
   -- JTAC
   JTAC={
     Axeman=1,
@@ -221,7 +227,7 @@ UTILS = {
 -- @return #boolean
 UTILS.IsInstanceOf = function( object, className )
   -- Is className NOT a string ?
-  if not type( className ) == 'string' then
+  if type( className ) ~= 'string' then
 
     -- Is className a Moose class ?
     if type( className ) == 'table' and className.IsInstanceOf ~= nil then
@@ -293,8 +299,9 @@ UTILS.DeepCopy = function(object)
 end
 
 
---- Porting in Slmod's serialize_slmod2.
+--- Serialize a given table.
 -- @param #table tbl Input table.
+-- @return #string Table as a string.
 UTILS.OneLineSerialize = function( tbl )  -- serialization of a table all on a single line, no comments, made to replace old get_table_string function
 
   lookup_table = {}
@@ -321,7 +328,7 @@ UTILS.OneLineSerialize = function( tbl )  -- serialization of a table all on a s
           ind_str[#ind_str + 1] = ']='
         else --must be a string
           ind_str[#ind_str + 1] = '['
-          ind_str[#ind_str + 1] = routines.utils.basicSerialize(ind)
+          ind_str[#ind_str + 1] = UTILS.BasicSerialize(ind)
           ind_str[#ind_str + 1] = ']='
         end
 
@@ -332,7 +339,7 @@ UTILS.OneLineSerialize = function( tbl )  -- serialization of a table all on a s
           tbl_str[#tbl_str + 1] = table.concat(ind_str)
           tbl_str[#tbl_str + 1] = table.concat(val_str)
       elseif type(val) == 'string' then
-          val_str[#val_str + 1] = routines.utils.basicSerialize(val)
+          val_str[#val_str + 1] = UTILS.BasicSerialize(val)
           val_str[#val_str + 1] = ','
           tbl_str[#tbl_str + 1] = table.concat(ind_str)
           tbl_str[#tbl_str + 1] = table.concat(val_str)
@@ -355,7 +362,7 @@ UTILS.OneLineSerialize = function( tbl )  -- serialization of a table all on a s
           tbl_str[#tbl_str + 1] = "f() " .. tostring(ind)
           tbl_str[#tbl_str + 1] = ','   --I think this is right, I just added it
         else
-          env.info('unable to serialize value type ' .. routines.utils.basicSerialize(type(val)) .. ' at index ' .. tostring(ind))
+          env.info('unable to serialize value type ' .. UTILS.BasicSerialize(type(val)) .. ' at index ' .. tostring(ind))
           env.info( debug.traceback() )
         end
 
@@ -371,17 +378,215 @@ UTILS.OneLineSerialize = function( tbl )  -- serialization of a table all on a s
   return objectreturn
 end
 
---porting in Slmod's "safestring" basic serialize
+--- Serialize a table to a single line string.
+-- @param #table tbl table to serialize.
+-- @return #string string containing serialized table.
+function UTILS._OneLineSerialize(tbl)
+
+  if type(tbl) == 'table' then --function only works for tables!
+
+    local tbl_str = {}
+
+    tbl_str[#tbl_str + 1] = '{ '
+
+    for ind,val in pairs(tbl) do -- serialize its fields
+      if type(ind) == "number" then
+        tbl_str[#tbl_str + 1] = '['
+        tbl_str[#tbl_str + 1] = tostring(ind)
+        tbl_str[#tbl_str + 1] = '] = '
+      else --must be a string
+        tbl_str[#tbl_str + 1] = '['
+        tbl_str[#tbl_str + 1] = UTILS.BasicSerialize(ind)
+        tbl_str[#tbl_str + 1] = '] = '
+      end
+
+      if ((type(val) == 'number') or (type(val) == 'boolean')) then
+        tbl_str[#tbl_str + 1] = tostring(val)
+        tbl_str[#tbl_str + 1] = ', '
+      elseif type(val) == 'string' then
+        tbl_str[#tbl_str + 1] = UTILS.BasicSerialize(val)
+        tbl_str[#tbl_str + 1] = ', '
+      elseif type(val) == 'nil' then -- won't ever happen, right?
+        tbl_str[#tbl_str + 1] = 'nil, '
+      elseif type(val) == 'table' then
+        --tbl_str[#tbl_str + 1] = UTILS.TableShow(tbl,loc,indent,tableshow_tbls)
+        --tbl_str[#tbl_str + 1] = ', '   --I think this is right, I just added it
+      else
+        --log:warn('Unable to serialize value type $1 at index $2', mist.utils.basicSerialize(type(val)), tostring(ind))
+      end
+
+    end
+    
+      tbl_str[#tbl_str + 1] = '}'
+      return table.concat(tbl_str)
+    else
+      return  UTILS.BasicSerialize(tbl)
+  end
+end
+
+--- Basic serialize (porting in Slmod's "safestring" basic serialize).
+-- @param #string s Table to serialize.
 UTILS.BasicSerialize = function(s)
   if s == nil then
     return "\"\""
   else
-    if ((type(s) == 'number') or (type(s) == 'boolean') or (type(s) == 'function') or (type(s) == 'table') or (type(s) == 'userdata') ) then
+    if ((type(s) == 'number') or (type(s) == 'boolean') or (type(s) == 'function') or (type(s) == 'userdata') ) then
       return tostring(s)
+    elseif type(s) == "table" then
+      return UTILS._OneLineSerialize(s) 
     elseif type(s) == 'string' then
-      s = string.format('%q', s)
+      s = string.format('(%s)', s)
       return s
     end
+  end
+end
+
+--- Print a table to log in a nice format
+-- @param #table table The table to print
+-- @param #number indent Number of indents
+-- @param #boolean noprint Don't log but return text
+-- @return #string text Text created on the fly of the log output
+function UTILS.PrintTableToLog(table, indent, noprint)
+  local text = "\n"
+  if not table or type(table) ~= "table" then
+    env.warning("No table passed!")
+    return nil
+  end
+  if not indent then indent = 0 end
+  for k, v in pairs(table) do
+    if string.find(k," ") then k='"'..k..'"'end
+    if type(v) == "table" then
+      if not noprint then
+        env.info(string.rep("  ", indent) .. tostring(k) .. " = {")
+      end
+      text = text ..string.rep("  ", indent) .. tostring(k) .. " = {\n"
+      text = text .. tostring(UTILS.PrintTableToLog(v, indent + 1)).."\n"
+      if not noprint then
+        env.info(string.rep("  ", indent) .. "},")
+      end
+      text = text .. string.rep("  ", indent) .. "},\n"
+    elseif type(v) == "function" then
+    else
+      local value
+      if tostring(v) == "true" or tostring(v) == "false" or tonumber(v) ~= nil then
+        value=v
+      else
+        value = '"'..tostring(v)..'"'
+      end
+      if not noprint then
+        env.info(string.rep("  ", indent) .. tostring(k) .. " = " .. tostring(value)..",\n")
+      end
+      text = text .. string.rep("  ", indent) .. tostring(k) .. " = " .. tostring(value)..",\n"
+    end
+  end
+  return text
+end
+
+--- Returns table in a easy readable string representation.
+-- @param tbl table to show
+-- @param loc
+-- @param indent
+-- @param tableshow_tbls
+-- @return Human readable string representation of given table.
+function UTILS.TableShow(tbl, loc, indent, tableshow_tbls)
+  tableshow_tbls = tableshow_tbls or {} --create table of tables
+  loc = loc or ""
+  indent = indent or ""
+  if type(tbl) == 'table' then --function only works for tables!
+    tableshow_tbls[tbl] = loc
+
+    local tbl_str = {}
+
+    tbl_str[#tbl_str + 1] = indent .. '{\n'
+
+    for ind,val in pairs(tbl) do -- serialize its fields
+      if type(ind) == "number" then
+        tbl_str[#tbl_str + 1] = indent
+        tbl_str[#tbl_str + 1] = loc .. '['
+        tbl_str[#tbl_str + 1] = tostring(ind)
+        tbl_str[#tbl_str + 1] = '] = '
+      else
+        tbl_str[#tbl_str + 1] = indent
+        tbl_str[#tbl_str + 1] = loc .. '['
+        tbl_str[#tbl_str + 1] = UTILS.BasicSerialize(ind)
+        tbl_str[#tbl_str + 1] = '] = '
+      end
+
+      if ((type(val) == 'number') or (type(val) == 'boolean')) then
+        tbl_str[#tbl_str + 1] = tostring(val)
+        tbl_str[#tbl_str + 1] = ',\n'
+      elseif type(val) == 'string' then
+        tbl_str[#tbl_str + 1] = UTILS.BasicSerialize(val)
+        tbl_str[#tbl_str + 1] = ',\n'
+      elseif type(val) == 'nil' then -- won't ever happen, right?
+        tbl_str[#tbl_str + 1] = 'nil,\n'
+      elseif type(val) == 'table' then
+        if tableshow_tbls[val] then
+          tbl_str[#tbl_str + 1] = tostring(val) .. ' already defined: ' .. tableshow_tbls[val] .. ',\n'
+        else
+          tableshow_tbls[val] = loc ..  '[' .. UTILS.BasicSerialize(ind) .. ']'
+          tbl_str[#tbl_str + 1] = tostring(val) .. ' '
+          tbl_str[#tbl_str + 1] = UTILS.TableShow(val, loc .. '[' .. UTILS.BasicSerialize(ind).. ']', indent .. '    ', tableshow_tbls)
+          tbl_str[#tbl_str + 1] = ',\n'
+        end
+      elseif type(val) == 'function' then
+        if debug and debug.getinfo then
+          local fcnname = tostring(val)
+          local info = debug.getinfo(val, "S")
+          if info.what == "C" then
+            tbl_str[#tbl_str + 1] = string.format('%q', fcnname .. ', C function') .. ',\n'
+          else
+            if (string.sub(info.source, 1, 2) == [[./]]) then
+              tbl_str[#tbl_str + 1] = string.format('%q', fcnname .. ', defined in (' .. info.linedefined .. '-' .. info.lastlinedefined .. ')' .. info.source) ..',\n'
+            else
+              tbl_str[#tbl_str + 1] = string.format('%q', fcnname .. ', defined in (' .. info.linedefined .. '-' .. info.lastlinedefined .. ')') ..',\n'
+            end
+          end
+
+        else
+          tbl_str[#tbl_str + 1] = 'a function,\n'
+        end
+      else
+        tbl_str[#tbl_str + 1] = 'unable to serialize value type ' .. UTILS.BasicSerialize(type(val)) .. ' at index ' .. tostring(ind)
+      end
+    end
+
+    tbl_str[#tbl_str + 1] = indent .. '}'
+    return table.concat(tbl_str)
+  end
+end
+
+--- Dumps the global table _G.
+-- This dumps the global table _G to a file in the DCS\Logs directory.
+-- This function requires you to disable script sanitization in $DCS_ROOT\Scripts\MissionScripting.lua to access lfs and io libraries.
+-- @param #string fname File name.
+function UTILS.Gdump(fname)
+  if lfs and io then
+  
+    local fdir = lfs.writedir() .. [[Logs\]] .. fname
+    
+    local f = io.open(fdir, 'w')
+    
+    f:write(UTILS.TableShow(_G))
+    
+    f:close()
+    
+    env.info(string.format('Wrote debug data to $1', fdir))
+  else
+    env.error("WARNING: lfs and/or io not de-sanitized - cannot dump _G!")
+  end
+end
+
+--- Executes the given string.
+-- borrowed from Slmod
+-- @param #string s string containing LUA code.
+-- @return #boolean `true` if successfully executed, `false` otherwise.
+function UTILS.DoString(s)
+  local f, err = loadstring(s)
+  if f then
+    return true, f()
+  else
+    return false, err
   end
 end
 
@@ -628,6 +833,64 @@ UTILS.tostringLL = function( lat, lon, acc, DMS)
   end
 end
 
+--[[acc:
+in DM: decimal point of minutes.
+In DMS: decimal point of seconds.
+position after the decimal of the least significant digit:
+So:
+42.32 - acc of 2.
+]]
+UTILS.tostringLLM2KData = function( lat, lon, acc)
+
+  local latHemi, lonHemi
+  if lat > 0 then
+    latHemi = 'N'
+  else
+    latHemi = 'S'
+  end
+
+  if lon > 0 then
+    lonHemi = 'E'
+  else
+    lonHemi = 'W'
+  end
+
+  lat = math.abs(lat)
+  lon = math.abs(lon)
+
+  local latDeg = math.floor(lat)
+  local latMin = (lat - latDeg)*60
+
+  local lonDeg = math.floor(lon)
+  local lonMin = (lon - lonDeg)*60
+
+  -- degrees, decimal minutes.
+  latMin = UTILS.Round(latMin, acc)
+  lonMin = UTILS.Round(lonMin, acc)
+  
+  if latMin == 60 then
+    latMin = 0
+    latDeg = latDeg + 1
+  end
+  
+  if lonMin == 60 then
+    lonMin = 0
+    lonDeg = lonDeg + 1
+  end
+  
+  local minFrmtStr -- create the formatting string for the minutes place
+  if acc <= 0 then  -- no decimal place.
+    minFrmtStr = '%02d'
+  else
+    local width = 3 + acc  -- 01.310 - that's a width of 6, for example.
+    minFrmtStr = '%0' .. width .. '.' .. acc .. 'f'
+  end
+  
+  -- 024 23'N or 024 23.123'N
+  return latHemi..string.format('%02d:', latDeg) .. string.format(minFrmtStr, latMin), lonHemi..string.format('%02d:', lonDeg) .. string.format(minFrmtStr, lonMin)
+
+end
+
 -- acc- the accuracy of each easting/northing.  0, 1, 2, 3, 4, or 5.
 UTILS.tostringMGRS = function(MGRS, acc) --R2.1
 
@@ -867,9 +1130,9 @@ function UTILS.BeaufortScale(speed)
   return bn,bd
 end
 
---- Split string at seperators. C.f. [split-string-in-lua](http://stackoverflow.com/questions/1426954/split-string-in-lua).
+--- Split string at separators. C.f. [split-string-in-lua](http://stackoverflow.com/questions/1426954/split-string-in-lua).
 -- @param #string str Sting to split.
--- @param #string sep Speparator for split.
+-- @param #string sep Separator for split.
 -- @return #table Split text.
 function UTILS.Split(str, sep)
   local result = {}
@@ -1164,12 +1427,22 @@ function UTILS.VecSubstract(a, b)
   return {x=a.x-b.x, y=a.y-b.y, z=a.z-b.z}
 end
 
+--- Substract is not a word, don't want to rename the original function because it's been around since forever
+function UTILS.VecSubtract(a, b)
+  return UTILS.VecSubstract(a, b)
+end
+
 --- Calculate the difference between two 2D vectors by substracting the x,y components from each other.
 -- @param DCS#Vec2 a Vector in 2D with x, y components.
 -- @param DCS#Vec2 b Vector in 2D with x, y components.
 -- @return DCS#Vec2 Vector c=a-b with c(i)=a(i)-b(i), i=x,y.
 function UTILS.Vec2Substract(a, b)
   return {x=a.x-b.x, y=a.y-b.y}
+end
+
+--- Substract is not a word, don't want to rename the original function because it's been around since forever
+function UTILS.Vec2Subtract(a, b)
+  return UTILS.Vec2Substract(a, b)
 end
 
 --- Calculate the total vector of two 3D vectors by adding the x,y,z components of each other.
@@ -1373,7 +1646,7 @@ function UTILS.TACANToFrequency(TACANChannel, TACANMode)
 end
 
 
---- Returns the DCS map/theatre as optained by env.mission.theatre
+--- Returns the DCS map/theatre as optained by `env.mission.theatre`.
 -- @return #string DCS map name.
 function UTILS.GetDCSMap()
   return env.mission.theatre
@@ -1429,6 +1702,7 @@ end
 -- * Syria +5 (East)
 -- * Mariana Islands +2 (East)
 -- * Falklands +12 (East) - note there's a LOT of deviation across the map, as we're closer to the South Pole
+-- * Sinai +4.8 (East)
 -- @param #string map (Optional) Map for which the declination is returned. Default is from env.mission.theatre
 -- @return #number Declination in degrees.
 function UTILS.GetMagneticDeclination(map)
@@ -1453,6 +1727,8 @@ function UTILS.GetMagneticDeclination(map)
     declination=2
   elseif map==DCSMAP.Falklands then
     declination=12
+  elseif map==DCSMAP.Sinai then
+    declination=4.8
   else
     declination=0
   end
@@ -1668,6 +1944,8 @@ function UTILS.GMTToLocalTimeDifference()
     return 10  -- Guam is UTC+10 hours.
   elseif theatre==DCSMAP.Falklands then
     return -3  -- Fireland is UTC-3 hours.
+  elseif theatre==DCSMAP.Sinai then
+    return 2   -- Currently map is +2 but should be +3 (DCS bug?)    
   else
     BASE:E(string.format("ERROR: Unknown Map %s in UTILS.GMTToLocal function. Returning 0", tostring(theatre)))
     return 0
@@ -1934,17 +2212,17 @@ function UTILS.IsLoadingDoorOpen( unit_name )
           return true
       end
 
-      if string.find(type_name, "Bell-47") then -- bell aint got no doors so always ready to load injured soldiers
+      if type_name == "Bell-47" then -- bell aint got no doors so always ready to load injured soldiers
           BASE:T(unit_name .. " door is open")
           return true
       end
-      
-      if string.find(type_name, "UH-60L") and (unit:getDrawArgumentValue(401) == 1 or unit:getDrawArgumentValue(402) == 1) then
+     
+      if type_name == "UH-60L" and (unit:getDrawArgumentValue(401) == 1 or unit:getDrawArgumentValue(402) == 1) then
           BASE:T(unit_name .. " cargo door is open")
           return true
       end
 
-      if string.find(type_name, "UH-60L" ) and (unit:getDrawArgumentValue(38) == 1 or unit:getDrawArgumentValue(400) == 1 ) then
+      if type_name ==  "UH-60L" and (unit:getDrawArgumentValue(38) > 0 or unit:getDrawArgumentValue(400) == 1 ) then
           BASE:T(unit_name .. " front door(s) are open")
           return true
       end
@@ -1957,6 +2235,11 @@ function UTILS.IsLoadingDoorOpen( unit_name )
       if type_name == "Bronco-OV-10A" then
          BASE:T(unit_name .. " front door(s) are open")
          return true -- no doors on this one ;)
+      end
+      
+      if type_name == "MH-60R" and (unit:getDrawArgumentValue(403) > 0 or unit:getDrawArgumentValue(403) == -1) then
+        BASE:T(unit_name .. " cargo door is open")
+        return true
       end
       
       return false
@@ -2059,20 +2342,37 @@ function UTILS.GenerateVHFrequencies()
   return FreeVHFFrequencies
 end
 
---- Function to generate valid UHF Frequencies in mHz (AM).
+--- Function to generate valid UHF Frequencies in mHz (AM). Can be between 220 and 399 mHz. 243 is auto-excluded.
+-- @param Start (Optional) Avoid frequencies between Start and End in mHz, e.g. 244
+-- @param End (Optional) Avoid frequencies between Start and End in mHz, e.g. 320
 -- @return #table UHF Frequencies
-function UTILS.GenerateUHFrequencies()
+function UTILS.GenerateUHFrequencies(Start,End)
 
     local FreeUHFFrequencies = {}
     local _start = 220000000
-
-    while _start < 399000000 do
-    if _start ~= 243000000 then
-      table.insert(FreeUHFFrequencies, _start)
+    
+    if not Start then
+      while _start < 399000000 do
+      if _start ~= 243000000 then
+        table.insert(FreeUHFFrequencies, _start)
+      end
+          _start = _start + 500000
+      end
+    else
+      local myend = End*1000000 or 399000000
+      local mystart = Start*1000000 or 220000000
+      
+      while _start < 399000000 do
+      if _start ~= 243000000 and (_start < mystart or _start > myend) then
+        print(_start)
+        table.insert(FreeUHFFrequencies, _start)
+      end
+          _start = _start + 500000
+      end
+      
     end
-        _start = _start + 500000
-    end
-
+    
+    
     return FreeUHFFrequencies
 end
 
@@ -2205,7 +2505,7 @@ function UTILS.LoadFromFile(Path,Filename)
   -- Check if file exists.
   local exists=UTILS.CheckFileExists(Path,Filename)
   if not exists then
-    BASE:E(string.format("ERROR: File %s does not exist!",filename))
+    BASE:I(string.format("ERROR: File %s does not exist!",filename))
     return false
   end
     
@@ -2238,7 +2538,7 @@ function UTILS.CheckFileExists(Path,Filename)
      
   -- Check io module is available.
   if not io then
-    BASE:E("ERROR: io not desanitized. Can't save current state.")
+    BASE:E("ERROR: io not desanitized.")
     return false
   end
   
@@ -2914,4 +3214,632 @@ function UTILS.PlotRacetrack(Coordinate, Altitude, Speed, Heading, Leg, Coalitio
     circle_center_fix_four:CircleToAll(UTILS.NMToMeters(turn_radius), coalition, color, alpha, nil, 0, lineType)--, ReadOnly, Text)
     circle_center_two_three:CircleToAll(UTILS.NMToMeters(turn_radius), coalition, color, alpha, nil, 0, lineType)--, ReadOnly, Text)
 
+end
+
+--- Get the current time in a "nice" format like 21:01:15
+-- @return #string Returns string with the current time
+function UTILS.TimeNow()
+    return UTILS.SecondsToClock(timer.getAbsTime(), false, false)
+end
+
+
+--- Given 2 "nice" time string, returns the difference between the two in seconds
+-- @param #string start_time Time string like "07:15:22"
+-- @param #string end_time Time string like "08:11:27"
+-- @return #number Seconds between start_time and end_time
+function UTILS.TimeDifferenceInSeconds(start_time, end_time)
+    return UTILS.ClockToSeconds(end_time) - UTILS.ClockToSeconds(start_time)
+end
+
+--- Check if the current time is later than time_string.
+-- @param #string start_time Time string like "07:15:22"
+-- @return #boolean True if later, False if before
+function UTILS.TimeLaterThan(time_string)
+    if timer.getAbsTime() > UTILS.ClockToSeconds(time_string) then
+        return true
+    end
+    return false
+end
+
+--- Check if the current time is before time_string.
+-- @param #string start_time Time string like "07:15:22"
+-- @return #boolean False if later, True if before
+function UTILS.TimeBefore(time_string)
+    if timer.getAbsTime() < UTILS.ClockToSeconds(time_string) then
+        return true
+    end
+    return false
+end
+
+
+--- Combines two time strings to give you a new time. For example "15:16:32" and "02:06:24" would return "17:22:56"
+-- @param #string time_string_01 Time string like "07:15:22"
+-- @param #string time_string_02 Time string like "08:11:27"
+-- @return #string Result of the two time string combined
+function UTILS.CombineTimeStrings(time_string_01, time_string_02)
+    local hours1, minutes1, seconds1 = time_string_01:match("(%d+):(%d+):(%d+)")
+    local hours2, minutes2, seconds2 = time_string_02:match("(%d+):(%d+):(%d+)")
+    local total_seconds = tonumber(seconds1) + tonumber(seconds2) + tonumber(minutes1) * 60 + tonumber(minutes2) * 60 + tonumber(hours1) * 3600 + tonumber(hours2) * 3600
+
+    total_seconds = total_seconds % (24 * 3600)
+    if total_seconds < 0 then
+        total_seconds = total_seconds + 24 * 3600
+    end
+
+    local hours = math.floor(total_seconds / 3600)
+    total_seconds = total_seconds - hours * 3600
+    local minutes = math.floor(total_seconds / 60)
+    local seconds = total_seconds % 60
+
+    return string.format("%02d:%02d:%02d", hours, minutes, seconds)
+end
+
+
+--- Subtracts two time string to give you a new time. For example "15:16:32" and "02:06:24" would return "13:10:08"
+-- @param #string time_string_01 Time string like "07:15:22"
+-- @param #string time_string_02 Time string like "08:11:27"
+-- @return #string Result of the two time string subtracted
+function UTILS.SubtractTimeStrings(time_string_01, time_string_02)
+    local hours1, minutes1, seconds1 = time_string_01:match("(%d+):(%d+):(%d+)")
+    local hours2, minutes2, seconds2 = time_string_02:match("(%d+):(%d+):(%d+)")
+    local total_seconds = tonumber(seconds1) - tonumber(seconds2) + tonumber(minutes1) * 60 - tonumber(minutes2) * 60 + tonumber(hours1) * 3600 - tonumber(hours2) * 3600
+
+    total_seconds = total_seconds % (24 * 3600)
+    if total_seconds < 0 then
+        total_seconds = total_seconds + 24 * 3600
+    end
+
+    local hours = math.floor(total_seconds / 3600)
+    total_seconds = total_seconds - hours * 3600
+    local minutes = math.floor(total_seconds / 60)
+    local seconds = total_seconds % 60
+
+    return string.format("%02d:%02d:%02d", hours, minutes, seconds)
+end
+
+--- Checks if the current time is in between start_time and end_time
+-- @param #string time_string_01 Time string like "07:15:22"
+-- @param #string time_string_02 Time string like "08:11:27"
+-- @return #bool True if it is, False if it's not
+function UTILS.TimeBetween(start_time, end_time)
+    return UTILS.TimeLaterThan(start_time) and UTILS.TimeBefore(end_time)
+end
+
+--- Easy to read one line to roll the dice on something. 1% is very unlikely to happen, 99% is very likely to happen
+-- @param #number chance (optional) Percentage chance you want something to happen. Defaults to a random number if not given
+-- @return #bool True if the dice roll was within the given percentage chance of happening
+function UTILS.PercentageChance(chance)
+    chance = chance or math.random(0, 100)
+    chance = UTILS.Clamp(chance, 0, 100)
+    local percentage = math.random(0, 100)
+    if percentage < chance then
+        return true
+    end
+    return false
+end
+
+--- Easy to read one liner to clamp a value
+-- @param #number value Input value
+-- @param #number min Minimal value that should be respected
+-- @param #number max Maximal value that should be respected
+-- @return #number Clamped value
+function UTILS.Clamp(value, min, max)
+    if value < min then value = min end
+    if value > max then value = max end
+
+    return value
+end
+
+--- Clamp an angle so that it's always between 0 and 360 while still being correct
+-- @param #number value Input value
+-- @return #number Clamped value
+function UTILS.ClampAngle(value)
+    if value > 360 then return value - 360 end
+    if value < 0 then return value + 360 end
+    return value
+end
+
+--- Remap an input to a new value in a given range. For example:
+--- UTILS.RemapValue(20, 10, 30, 0, 200) would return 100
+--- 20 is 50% between 10 and 30
+--- 50% between 0 and 200 is 100
+-- @param #number value Input value
+-- @param #number old_min Min value to remap from
+-- @param #number old_max Max value to remap from
+-- @param #number new_min Min value to remap to
+-- @param #number new_max Max value to remap to
+-- @return #number Remapped value
+function UTILS.RemapValue(value, old_min, old_max, new_min, new_max)
+    new_min = new_min or 0
+    new_max = new_max or 100
+
+    local old_range = old_max - old_min
+    local new_range = new_max - new_min
+    local percentage = (value - old_min) / old_range
+    return (new_range * percentage) + new_min
+end
+
+--- Given a triangle made out of 3 vector 2s, return a vec2 that is a random number in this triangle
+-- @param #Vec2 pt1 Min value to remap from
+-- @param #Vec2 pt2 Max value to remap from
+-- @param #Vec2 pt3 Max value to remap from
+-- @return #Vec2 Random point in triangle
+function UTILS.RandomPointInTriangle(pt1, pt2, pt3)
+    local pt = {math.random(), math.random()}
+    table.sort(pt)
+    local s = pt[1]
+    local t = pt[2] - pt[1]
+    local u = 1 - pt[2]
+
+    return {x = s * pt1.x + t * pt2.x + u * pt3.x,
+            y = s * pt1.y + t * pt2.y + u * pt3.y}
+end
+
+--- Checks if a given angle (heading) is between 2 other angles. Min and max have to be given in clockwise order For example:
+--- UTILS.AngleBetween(350, 270, 15) would return True
+--- UTILS.AngleBetween(22, 95, 20) would return False
+-- @param #number angle Min value to remap from
+-- @param #number min Max value to remap from
+-- @param #number max Max value to remap from
+-- @return #bool
+function UTILS.AngleBetween(angle, min, max)
+    angle = (360 + (angle % 360)) % 360
+    min = (360 + min % 360) % 360
+    max = (360 + max % 360) % 360
+
+    if min < max then return min <= angle and angle <= max end
+    return min <= angle or angle <= max
+end
+
+--- Easy to read one liner to write a JSON file. Everything in @data should be serializable
+--- json.lua exists in the DCS install Scripts folder
+-- @param #table data table to write
+-- @param #string file_path File path
+function UTILS.WriteJSON(data, file_path)
+    package.path  = package.path ..  ";.\\Scripts\\?.lua"
+    local JSON = require("json")
+    local pretty_json_text = JSON:encode_pretty(data)
+    local write_file = io.open(file_path, "w")
+    write_file:write(pretty_json_text)
+    write_file:close()
+end
+
+--- Easy to read one liner to read a JSON file.
+--- json.lua exists in the DCS install Scripts folder
+-- @param #string file_path File path
+-- @return #table
+function UTILS.ReadJSON(file_path)
+    package.path  = package.path ..  ";.\\Scripts\\?.lua"
+    local JSON = require("json")
+    local read_file = io.open(file_path, "r")
+    local contents = read_file:read( "*a" )
+    io.close(read_file)
+    return JSON:decode(contents)
+end
+
+--- Get the properties names and values of properties set up on a Zone in the Mission Editor.
+--- This doesn't work for any zones created in MOOSE
+-- @param #string zone_name Name of the zone as set up in the Mission Editor
+-- @return #table with all the properties on a zone
+function UTILS.GetZoneProperties(zone_name)
+    local return_table = {}
+    for _, zone in pairs(env.mission.triggers.zones) do
+        if zone["name"] == zone_name then
+            if table.length(zone["properties"]) > 0 then
+                for _, property in pairs(zone["properties"]) do
+                    return_table[property["key"]] = property["value"]
+                end
+              return return_table
+            else
+                BASE:I(string.format("%s doesn't have any properties", zone_name))
+                return {}
+            end
+        end
+    end
+end
+
+--- Rotates a point around another point with a given angle. Useful if you're loading in groups or
+--- statics but you want to rotate them all as a collection. You can get the center point of everything
+--- and then rotate all the positions of every object around this center point.
+-- @param #Vec2 point Point that you want to rotate
+-- @param #Vec2 pivot Pivot point of the rotation
+-- @param #number angle How many degrees the point should be rotated
+-- @return #Vec Rotated point
+function UTILS.RotatePointAroundPivot(point, pivot, angle)
+    local radians = math.rad(angle)
+
+    local x = point.x - pivot.x
+    local y = point.y - pivot.y
+
+    local rotated_x = x * math.cos(radians) - y * math.sin(radians)
+    local rotatex_y = x * math.sin(radians) + y * math.cos(radians)
+
+    local original_x = rotated_x + pivot.x
+    local original_y = rotatex_y + pivot.y
+
+    return { x = original_x, y = original_y }
+end
+
+--- Makes a string semi-unique by attaching a random number between 0 and 1 million to it
+-- @param #string base String you want to unique-fy
+-- @return #string Unique string
+function UTILS.UniqueName(base)
+    base = base or ""
+    local ran = tostring(math.random(0, 1000000))
+
+    if base == "" then
+        return ran
+    end
+    return base .. "_" .. ran
+end
+
+--- Check if a string starts with something
+-- @param #string str String to check
+-- @param #string value
+-- @return #bool True if str starts with value
+function string.startswith(str, value)
+   return string.sub(str,1,string.len(value)) == value
+end
+
+
+--- Check if a string ends with something
+-- @param #string str String to check
+-- @param #string value
+-- @return #bool True if str ends with value
+function string.endswith(str, value)
+    return value == "" or str:sub(-#value) == value
+end
+
+--- Splits a string on a separator. For example:
+--- string.split("hello_dcs_world", "-") would return {"hello", "dcs", "world"}
+-- @param #string input String to split
+-- @param #string separator What to split on
+-- @return #table individual strings
+function string.split(input, separator)
+    local parts = {}
+    for part in input:gmatch("[^" .. separator .. "]+") do
+        table.insert(parts, part)
+    end
+    return parts
+end
+
+
+--- Checks if a string contains a substring. Easier to remember for Python people :)
+--- string.split("hello_dcs_world", "-") would return {"hello", "dcs", "world"}
+-- @param #string str
+-- @param #string value
+-- @return #bool True if str contains value
+function string.contains(str, value)
+    return string.match(str, value)
+end
+
+--- Given tbl is a indexed table ({"hello", "dcs", "world"}), checks if element exists in the table.
+--- The table can be made up out of complex tables or values as well
+-- @param #table tbl
+-- @param #string element
+-- @return #bool True if tbl contains element
+function table.contains(tbl, element)
+    if element == nil or tbl == nil then return false end
+
+    local index = 1
+    while tbl[index] do
+        if tbl[index] == element then
+            return true
+        end
+        index = index + 1
+    end
+    return false
+end
+
+--- Checks if a table contains a specific key.
+-- @param #table tbl Table to check
+-- @param #string key Key to look for
+-- @return #bool True if tbl contains key
+function table.contains_key(tbl, key)
+    if tbl[key] ~= nil then return true else return false end
+end
+
+--- Inserts a unique element into a table.
+-- @param #table tbl Table to insert into
+-- @param #string element Element to insert
+function table.insert_unique(tbl, element)
+    if element == nil or tbl == nil then return end
+
+    if not table.contains(tbl, element) then
+        table.insert(tbl, element)
+    end
+end
+
+--- Removes an element from a table by its value.
+-- @param #table tbl Table to remove from
+-- @param #string element Element to remove
+function table.remove_by_value(tbl, element)
+    local indices_to_remove = {}
+    local index = 1
+    for _, value in pairs(tbl) do
+        if value == element then
+            table.insert(indices_to_remove, index)
+        end
+        index = index + 1
+    end
+
+    for _, idx in pairs(indices_to_remove) do
+        table.remove(tbl, idx)
+    end
+end
+
+--- Removes an element from a table by its key.
+-- @param #table table Table to remove from
+-- @param #string key Key of the element to remove
+-- @return #string Removed element
+function table.remove_key(table, key)
+    local element = table[key]
+    table[key] = nil
+    return element
+end
+
+--- Finds the index of an element in a table.
+-- @param #table table Table to search
+-- @param #string element Element to find
+-- @return #int Index of the element, or nil if not found
+function table.index_of(table, element)
+    for i, v in ipairs(table) do
+        if v == element then
+            return i
+        end
+    end
+    return nil
+end
+
+--- Counts the number of elements in a table.
+-- @param #table T Table to count
+-- @return #int Number of elements in the table
+function table.length(T)
+  local count = 0
+  for _ in pairs(T) do count = count + 1 end
+  return count
+end
+
+--- Slices a table between two indices, much like Python's my_list[2:-1]
+-- @param #table tbl Table to slice
+-- @param #int first Starting index
+-- @param #int last Ending index
+-- @return #table Sliced table
+function table.slice(tbl, first, last)
+  local sliced = {}
+  local start = first or 1
+  local stop = last or table.length(tbl)
+  local count = 1
+
+  for key, value in pairs(tbl) do
+      if count >= start and count <= stop then
+          sliced[key] = value
+      end
+      count = count + 1
+  end
+
+  return sliced
+end
+
+--- Counts the number of occurrences of a value in a table.
+-- @param #table tbl Table to search
+-- @param #string value Value to count
+-- @return #int Number of occurrences of the value
+function table.count_value(tbl, value)
+    local count = 0
+    for _, item in pairs(tbl) do
+        if item == value then count = count + 1 end
+    end
+    return count
+end
+
+--- Add 2 table together, t2 gets added to t1
+-- @param #table t1 First table
+-- @param #table t2 Second table
+-- @return #table Combined table
+function table.combine(t1, t2)
+    if t1 == nil and t2 == nil then
+        BASE:E("Both tables were empty!")
+    end
+
+    if t1 == nil then return t2 end
+    if t2 == nil then return t1 end
+    for i=1,#t2 do
+        t1[#t1+1] = t2[i]
+    end
+    return t1
+end
+
+--- Merges two tables into one. If a key exists in both t1 and t2, the value of t1 with be overwritten by the value of t2
+-- @param #table t1 First table
+-- @param #table t2 Second table
+-- @return #table Merged table
+function table.merge(t1, t2)
+    for k, v in pairs(t2) do
+        if (type(v) == "table") and (type(t1[k] or false) == "table") then
+            table.merge(t1[k], t2[k])
+        else
+            t1[k] = v
+        end
+    end
+    return t1
+end
+
+--- Adds an item to the end of a table.
+-- @param #table tbl Table to add to
+-- @param #string item Item to add
+function table.add(tbl, item)
+    tbl[#tbl + 1] = item
+end
+
+--- Shuffles the elements of a table.
+-- @param #table tbl Table to shuffle
+-- @return #table Shuffled table
+function table.shuffle(tbl)
+    local new_table = {}
+    for _, value in ipairs(tbl) do
+        local pos = math.random(1, #new_table +1)
+        table.insert(new_table, pos, value)
+    end
+    return new_table
+end
+
+--- Finds a key-value pair in a table.
+-- @param #table tbl Table to search
+-- @param #string key Key to find
+-- @param #string value Value to find
+-- @return #table Table containing the key-value pair, or nil if not found
+function table.find_key_value_pair(tbl, key, value)
+    for k, v in pairs(tbl) do
+        if type(v) == "table" then
+            local result = table.find_key_value_pair(v, key, value)
+            if result ~= nil then
+                return result
+            end
+        elseif k == key and v == value then
+            return tbl
+        end
+    end
+    return nil
+end
+
+--- Convert a decimal to octal
+-- @param #number Number the number to convert
+-- @return #number Octal
+function UTILS.DecimalToOctal(Number)
+  if Number < 8 then return Number end
+  local number = tonumber(Number)
+  local octal = ""
+  local n=1
+  while number > 7 do
+    local number1 = number%8
+    octal = string.format("%d",number1)..octal
+    local number2 = math.abs(number/8)
+    if number2 < 8 then
+      octal = string.format("%d",number2)..octal
+    end
+    number = number2
+    n=n+1
+  end
+  return tonumber(octal)
+end
+
+--- Convert an octal to decimal
+-- @param #number Number the number to convert
+-- @return #number Decimal
+function UTILS.OctalToDecimal(Number)
+  return tonumber(Number,8)
+end
+
+--- Function to save the position of a set of #OPSGROUP (ARMYGROUP) objects.
+-- @param Core.Set#SET_OPSGROUP Set of ops objects to save
+-- @param #string Path The path to use. Use double backslashes \\\\ on Windows filesystems.
+-- @param #string Filename The name of the file.
+-- @param #boolean Structured Append the data with a list of typenames in the group plus their count.
+-- @return #boolean outcome True if saving is successful, else false.
+function UTILS.SaveSetOfOpsGroups(Set,Path,Filename,Structured)
+  local filename = Filename or "SetOfGroups"
+  local data = "--Save SET of groups: (name,legion,template,alttemplate,units,position.x,position.y,position.z,strucdata) "..Filename .."\n"
+  local List = Set:GetSetObjects()
+  for _,_group in pairs (List) do
+    local group = _group:GetGroup() -- Wrapper.Group#GROUP
+    if group and group:IsAlive() then
+      local name = group:GetName()
+      local template = string.gsub(name,"(.AID.%d+$","")
+      if string.find(template,"#") then
+       template = string.gsub(name,"#(%d+)$","")
+      end
+      local alttemplate = _group.templatename or "none"
+      local legiono = _group.legion -- Ops.Legion#LEGION
+      local legion = "none"
+      if legiono and type(legiono) == "table" and legiono.ClassName then
+        legion = legiono:GetName()
+        local asset = legiono:GetAssetByName(name) -- Functional.Warehouse#WAREHOUSE.Assetitem
+        alttemplate=asset.templatename
+      end
+      local units = group:CountAliveUnits()
+      local position = group:GetVec3()
+      if Structured then
+        local structure = UTILS.GetCountPerTypeName(group)
+        local strucdata =  ""
+        for typen,anzahl in pairs (structure) do
+          strucdata = strucdata .. typen .. "=="..anzahl..";"
+        end
+        data = string.format("%s%s,%s,%s,%s,%d,%d,%d,%d,%s\n",data,name,legion,template,alttemplate,units,position.x,position.y,position.z,strucdata)
+      else
+        data = string.format("%s%s,%s,%s,%s,%d,%d,%d,%d\n",data,name,legion,template,alttemplate,units,position.x,position.y,position.z)
+      end     
+    end
+  end
+  -- save the data
+  local outcome = UTILS.SaveToFile(Path,Filename,data)
+  return outcome
+end
+
+--- Load back a #OPSGROUP (ARMYGROUP) data from file for use with @{Ops.Brigade#BRIGADE.LoadBackAssetInPosition}()
+-- @param #string Path The path to use. Use double backslashes \\\\ on Windows filesystems.
+-- @param #string Filename The name of the file.
+-- @return #table Returns a table of data entries: `{ groupname=groupname, size=size, coordinate=coordinate, template=template, structure=structure, legion=legion, alttemplate=alttemplate }`
+-- Returns nil when the file cannot be read. 
+function UTILS.LoadSetOfOpsGroups(Path,Filename)
+
+  local filename = Filename or "SetOfGroups"
+  local datatable = {}
+  
+  if UTILS.CheckFileExists(Path,filename) then
+    local outcome,loadeddata = UTILS.LoadFromFile(Path,Filename)
+    -- remove header
+    table.remove(loadeddata, 1)
+    for _id,_entry in pairs (loadeddata) do
+      local dataset = UTILS.Split(_entry,",")
+      -- 1name,2legion,3template,4alttemplate,5units,6position.x,7position.y,8position.z,9strucdata
+      local groupname = dataset[1]
+      local legion = dataset[2]
+      local template = dataset[3]
+      local alttemplate = dataset[4]
+      local size = tonumber(dataset[5])
+      local posx = tonumber(dataset[6])
+      local posy = tonumber(dataset[7])
+      local posz = tonumber(dataset[8])
+      local structure = dataset[9]
+      local coordinate = COORDINATE:NewFromVec3({x=posx, y=posy, z=posz})
+      if size > 0 then
+        local data = { groupname=groupname, size=size, coordinate=coordinate, template=template, structure=structure, legion=legion, alttemplate=alttemplate }
+        table.insert(datatable,data)
+      end
+    end
+  else
+    return nil
+  end
+
+  return datatable
+end
+
+--- Get the clock position from a relative heading
+-- @param #number refHdg The heading of the reference object (such as a Wrapper.UNIT) in 0-360
+-- @param #number tgtHdg The absolute heading from the reference object to the target object/point in 0-360
+-- @return #string text Text in clock heading such as "4 O'CLOCK"
+-- @usage Display the range and clock distance of a BTR in relation to REAPER 1-1's heading:
+-- 
+--          myUnit = UNIT:FindByName( "REAPER 1-1" )
+--          myTarget = GROUP:FindByName( "BTR-1" )
+--          
+--          coordUnit = myUnit:GetCoordinate()
+--          coordTarget = myTarget:GetCoordinate()
+--          
+--          hdgUnit = myUnit:GetHeading()
+--          hdgTarget = coordUnit:HeadingTo( coordTarget )
+--          distTarget = coordUnit:Get3DDistance( coordTarget )
+--          
+--          clockString = UTILS.ClockHeadingString( hdgUnit, hdgTarget )
+--          
+--          -- Will show this message to REAPER 1-1 in-game: Contact BTR at 3 o'clock for 1134m! 
+--          MESSAGE:New("Contact BTR at " .. clockString .. " for " .. distTarget  .. "m!):ToUnit( myUnit )
+function UTILS.ClockHeadingString(refHdg,tgtHdg)
+    local relativeAngle = tgtHdg - refHdg
+    if relativeAngle < 0 then
+        relativeAngle = relativeAngle + 360
+    end
+    local clockPos = math.ceil((relativeAngle % 360) / 30)
+    return clockPos.." o'clock"
 end

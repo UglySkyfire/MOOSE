@@ -14,17 +14,13 @@
 --
 -- # Demo Missions
 -- 
--- ### [SCHEDULER Demo Missions source code](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/SCH%20-%20Scheduler)
--- 
--- ### [SCHEDULER Demo Missions, only for beta testers](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/SCH%20-%20Scheduler)
---
--- ### [ALL Demo Missions pack of the last release](https://github.com/FlightControl-Master/MOOSE_MISSIONS/releases)
+-- ### [SCHEDULER Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/Core/Scheduler)
 --
 -- ===
 --
 -- # YouTube Channel
 --
--- ### [SCHEDULER YouTube Channel (none)]()
+-- ### None
 --
 -- ===
 --
@@ -52,7 +48,7 @@
 --
 -- A SCHEDULER can manage **multiple** (repeating) schedules. Each planned or executing schedule has a unique **ScheduleID**.
 -- The ScheduleID is returned when the method @{#SCHEDULER.Schedule}() is called.
--- It is recommended to store the ScheduleID in a variable, as it is used in the methods @{SCHEDULER.Start}() and @{SCHEDULER.Stop}(),
+-- It is recommended to store the ScheduleID in a variable, as it is used in the methods @{#SCHEDULER.Start}() and @{#SCHEDULER.Stop}(),
 -- which can start and stop specific repeating schedules respectively within a SCHEDULER object.
 --
 -- ## SCHEDULER constructor
@@ -208,7 +204,7 @@ SCHEDULER = {
 -- @param #number RandomizeFactor Specifies a randomization factor between 0 and 1 to randomize the Repeat.
 -- @param #number Stop Specifies the amount of seconds when the scheduler will be stopped.
 -- @return #SCHEDULER self.
--- @return #table The ScheduleID of the planned schedule.
+-- @return #string The ScheduleID of the planned schedule.
 function SCHEDULER:New( MasterObject, SchedulerFunction, SchedulerArguments, Start, Repeat, RandomizeFactor, Stop )
 
   local self = BASE:Inherit( self, BASE:New() ) -- #SCHEDULER

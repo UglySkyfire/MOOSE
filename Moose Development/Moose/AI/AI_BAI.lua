@@ -11,7 +11,7 @@
 --
 -- ===
 -- 
--- ### [Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/BAI%20-%20Battlefield%20Air%20Interdiction)
+-- ### [Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AI/AI_BAI)
 -- 
 -- ===
 -- 
@@ -22,7 +22,7 @@
 -- ### Author: **FlightControl**
 -- ### Contributions: 
 -- 
---   * **[Gunterlund](http://forums.eagle.ru:8080/member.php?u=75036)**: Test case revision.
+--   * **Gunterlund**: Test case revision.
 -- 
 -- ===
 --
@@ -130,7 +130,12 @@
 --      AIBAIZone:SearchOff()
 -- 
 -- Searching can be switched back on with the method @{#AI_BAI_ZONE.SearchOn}(). Use the method @{#AI_BAI_ZONE.SearchOnOff}() to flexibily switch searching on or off.
+--
+-- # Developer Note
 -- 
+-- Note while this class still works, it is no longer supported as the original author stopped active development of MOOSE
+-- Therefore, this class is considered to be deprecated
+--
 -- ===
 -- 
 -- @field #AI_BAI_ZONE

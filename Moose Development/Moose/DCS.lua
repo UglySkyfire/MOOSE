@@ -135,6 +135,22 @@ do -- env
   
 end -- env
 
+do -- radio
+
+  ---@type radio
+  -- @field #radio.modulation modulation
+  
+  ---
+  -- @type radio.modulation
+  -- @field AM
+  -- @field FM
+  
+  radio = {}
+  radio.modulation = {}
+  radio.modulation.AM = 0  
+  radio.modulation.FM = 1
+  
+end
 
 do -- timer
 
@@ -329,11 +345,11 @@ end -- country
 
 do -- Command
 
-  --- @type Command
+  -- @type Command
   -- @field #string id
   -- @field #Command.params params
   
-  --- @type Command.params
+  -- @type Command.params
 
 end -- Command
 
@@ -374,7 +390,7 @@ end -- coalition
 
 do -- Types
 
-  --- @type Desc
+  -- @type Desc
   -- @field #number speedMax0 Max speed in meters/second at zero altitude.
   -- @field #number massEmpty Empty mass in kg.
   -- @field #number tankerType Type of refueling system: 0=boom, 1=probe.
@@ -471,16 +487,16 @@ do -- Types
   -- @type AttributeNameArray 
   -- @list <#AttributeName>
 
-  --- @type Zone
+  -- @type Zone
   -- @field DCSVec3#Vec3 point
   -- @field #number radius
 
   Zone = {}
 
-  --- @type ModelTime
+  -- @type ModelTime
   -- @extends #number
   
-  --- @type Time
+  -- @type Time
   -- @extends #number
   
   --- A task descriptor (internal structure for DCS World). See [https://wiki.hoggitworld.com/view/Category:Tasks](https://wiki.hoggitworld.com/view/Category:Tasks).
@@ -489,7 +505,7 @@ do -- Types
   -- @field #string id
   -- @field #Task.param param
   
-  --- @type Task.param
+  -- @type Task.param
   
   --- List of @{#Task}
   -- @type TaskArray
@@ -536,7 +552,7 @@ do -- Object
   -- @field SCENERY
   -- @field CARGO
   
-  --- @type Object.Desc
+  -- @type Object.Desc
   -- @extends #Desc
   -- @field #number life initial life level
   -- @field #Box3 box bounding box of collision geometry
@@ -793,10 +809,117 @@ do -- Airbase
   -- @function [parent=#Airbase] getDesc
   -- @param self
   -- @return #Airbase.Desc
-  
+
+  --- Returns the warehouse object associated with the airbase object. Can then be used to call the warehouse class functions to modify the contents of the warehouse.
+  -- @function [parent=#Airbase] getWarehouse
+  -- @param self
+  -- @return #Warehouse The DCS warehouse object of this airbase.
+
+  --- Enables or disables the airbase and FARP auto capture game mechanic where ownership of a base can change based on the presence of ground forces or the 
+  -- default setting assigned in the editor.
+  -- @function [parent=#Airbase] autoCapture
+  -- @param self
+  -- @param #boolean setting `true` : enables autoCapture behavior, `false` : disables autoCapture behavior
+
+  --- Returns the current autoCapture setting for the passed base.
+  -- @function [parent=#Airbase] autoCaptureIsOn
+  -- @param self
+  -- @return #boolean `true` if autoCapture behavior is enabled and `false` otherwise.
+
+  --- Changes the passed airbase object's coalition to the set value. Must be used with Airbase.autoCapture to disable auto capturing of the base, 
+  -- otherwise the base can revert back to a different coalition depending on the situation and built in game capture rules.
+  -- @function [parent=#Airbase] setCoalition
+  -- @param self
+  -- @param #number coa The new owner coalition: 0=neutra, 1=red, 2=blue.
+
+  --- Returns the wsType of every object that exists in DCS. A wsType is a table consisting of 4 entries indexed numerically. 
+  -- It can be used to broadly categorize object types. The table can be broken down as: {mainCategory, subCat1, subCat2, index}
+  -- @function [parent=#Airbase] getResourceMap
+  -- @param self
+  -- @return #table wsType of every object that exists in DCS.
+
   Airbase = {} --#Airbase
 
 end -- Airbase
+
+
+do -- Warehouse
+
+  --- [DCS Class Warehouse](https://wiki.hoggitworld.com/view/DCS_Class_Warehouse)
+  -- The warehouse class gives control over warehouses that exist in airbase objects. These warehouses can limit the aircraft, munitions, and fuel available to coalition aircraft.
+  -- @type Warehouse
+
+  
+  --- Get a warehouse by passing its name.
+  -- @function [parent=#Warehouse] getByName
+  -- @param #string Name Name of the warehouse.
+  -- @return #Warehouse The warehouse object.
+
+  --- Adds the passed amount of a given item to the warehouse.
+  -- itemName is the typeName associated with the item: "weapons.missiles.AIM_54C_Mk47"
+  -- A wsType table can also be used, however the last digit with wsTypes has been known to change. {4, 4, 7, 322}
+  -- @function [parent=#Warehouse] addItem
+  -- @param self
+  -- @param #string itemName Name of the item.
+  -- @param #number count Number of items to add.
+
+  --- Returns the number of the passed type of item currently in a warehouse object.
+  -- @function [parent=#Warehouse] getItemCount
+  -- @param self
+  -- @param #string itemName Name of the item.
+
+  --- Sets the passed amount of a given item to the warehouse.
+  -- @function [parent=#Warehouse] setItem
+  -- @param self
+  -- @param #string itemName Name of the item.
+  -- @param #number count Number of items to add.
+
+  --- Removes the amount of the passed item from the warehouse.
+  -- @function [parent=#Warehouse] removeItem
+  -- @param self
+  -- @param #string itemName Name of the item.
+  -- @param #number count Number of items to be removed.
+
+  --- Adds the passed amount of a liquid fuel into the warehouse inventory.
+  -- @function [parent=#Warehouse] addLiquid
+  -- @param self
+  -- @param #number liquidType Type of liquid to add: 0=jetfuel, 1=aviation gasoline, 2=MW50, 3=Diesel.
+  -- @param #number count Amount of liquid to add.
+
+  --- Returns the amount of the passed liquid type within a given warehouse.
+  -- @function [parent=#Warehouse] getLiquidAmount
+  -- @param self
+  -- @param #number liquidType Type of liquid to add: 0=jetfuel, 1=aviation gasoline, 2=MW50, 3=Diesel.
+  -- @return #number Amount of liquid.
+
+  --- Sets the passed amount of a liquid fuel into the warehouse inventory.
+  -- @function [parent=#Warehouse] setLiquidAmount
+  -- @param self
+  -- @param #number liquidType Type of liquid to add: 0=jetfuel, 1=aviation gasoline, 2=MW50, 3=Diesel.
+  -- @param #number count Amount of liquid.
+
+  --- Removes the set amount of liquid from the inventory in a warehouse.
+  -- @function [parent=#Warehouse] setLiquidAmount
+  -- @param self
+  -- @param #number liquidType Type of liquid to add: 0=jetfuel, 1=aviation gasoline, 2=MW50, 3=Diesel.
+  -- @param #number count Amount of liquid.
+
+  --- Returns the airbase object associated with the warehouse object.
+  -- @function [parent=#Warehouse] getOwner
+  -- @param self
+  -- @return #Airbase The airbase object owning this warehouse.
+
+  --- Returns a full itemized list of everything currently in a warehouse. If a category is set to unlimited then the table will be returned empty.
+  -- Aircraft and weapons are indexed by strings. Liquids are indexed by number.
+  -- @function [parent=#Warehouse] getInventory
+  -- @param self
+  -- @param #string itemName Name of the item.
+  -- @return #table Itemized list of everything currently in a warehouse
+
+
+  Warehouse = {} --#Warehouse 
+
+end
 
 do -- Spot
 
@@ -860,7 +983,7 @@ do -- Spot
 end -- Spot
 
 do -- Controller
-  --- Controller is an object that performs A.I.-routines. Other words controller is an instance of A.I.. Controller stores current main task, active enroute tasks and behavior options. Controller performs commands. Please, read DCS A-10C GUI Manual EN.pdf chapter "Task Planning for Unit Groups", page 91 to understand A.I. system of DCS:A-10C. 
+  --- Controller is an object that performs A.I.-tasks. Other words controller is an instance of A.I.. Controller stores current main task, active enroute tasks and behavior options. Controller performs commands. Please, read DCS A-10C GUI Manual EN.pdf chapter "Task Planning for Unit Groups", page 91 to understand A.I. system of DCS:A-10C. 
   -- 
   -- This class has 2 types of functions:
   -- 
@@ -978,7 +1101,7 @@ end -- Controller
 
 do -- Unit
 
-  --- @type Unit
+  -- @type Unit
   -- @extends #CoalitionObject
   -- @field ID Identifier of an unit. It assigned to an unit by the Mission Editor automatically. 
   -- @field #Unit.Category Category
@@ -1093,15 +1216,18 @@ do -- Unit
   -- @field #Distance detectionDistanceHRM detection distance for RCS=1m^2 in high-resolution mapping mode, nil if radar has no HRM
   -- @field #Unit.Radar.detectionDistanceAir detectionDistanceAir detection distance for RCS=1m^2 airborne target, nil if radar doesn't support air search
   
-  --- @type Unit.Radar.detectionDistanceAir 
+  --- A radar.
+  -- @type Unit.Radar.detectionDistanceAir 
   -- @field #Unit.Radar.detectionDistanceAir.upperHemisphere upperHemisphere
   -- @field #Unit.Radar.detectionDistanceAir.lowerHemisphere lowerHemisphere
   
-  --- @type Unit.Radar.detectionDistanceAir.upperHemisphere
+  --- A radar.
+  -- @type Unit.Radar.detectionDistanceAir.upperHemisphere
   -- @field #Distance headOn
   -- @field #Distance tailOn
   
-  --- @type Unit.Radar.detectionDistanceAir.lowerHemisphere 
+  --- A radar.
+  -- @type Unit.Radar.detectionDistanceAir.lowerHemisphere 
   -- @field #Distance headOn
   -- @field #Distance tailOn
   
@@ -1403,22 +1529,26 @@ do -- AI
   -- @field IR_POINTER
   -- @field LASER
   
-  --- @type AI.Task.WaypointType
+  ---
+  -- @type AI.Task.WaypointType
   -- @field TAKEOFF
   -- @field TAKEOFF_PARKING
   -- @field TURNING_POINT
   -- @field TAKEOFF_PARKING_HOT
   -- @field LAND
   
-  --- @type AI.Task.TurnMethod
+  ---
+  -- @type AI.Task.TurnMethod
   -- @field FLY_OVER_POINT
   -- @field FIN_POINT
   
-  --- @type AI.Task.AltitudeType
+  ---
+  -- @type AI.Task.AltitudeType
   -- @field BARO
   -- @field RADIO
   
-  --- @type AI.Task.VehicleFormation
+  ---
+  -- @type AI.Task.VehicleFormation
   -- @field OFF_ROAD
   -- @field ON_ROAD
   -- @field RANK
@@ -1428,27 +1558,30 @@ do -- AI
   -- @field ECHELON_LEFT
   -- @field ECHELON_RIGHT
   
-  --- @type AI.Option
+  ---
+  -- @type AI.Option
   -- @field #AI.Option.Air                          Air
   -- @field #AI.Option.Ground                       Ground
   -- @field #AI.Option.Naval                        Naval
   
-  --- @type AI.Option.Air
+  ---
+  -- @type AI.Option.Air
   -- @field #AI.Option.Air.id                       id
   -- @field #AI.Option.Air.val                      val
   
-  --- @type AI.Option.Ground
+  ---
+  -- @type AI.Option.Ground
   -- @field #AI.Option.Ground.id                    id
   -- @field #AI.Option.Ground.val                   val
   -- @field #AI.Option.Ground.mid                   mid
   -- @field #AI.Option.Ground.mval                  mval
   -- 
-  --- @type AI.Option.Naval
+  -- @type AI.Option.Naval
   -- @field #AI.Option.Naval.id                     id
   -- @field #AI.Option.Naval.val                    val
  
- 
-  --- @type AI.Option.Air.id
+  ---
+  -- @type AI.Option.Air.id
   -- @field NO_OPTION
   -- @field ROE
   -- @field REACTION_ON_THREAT
@@ -1470,73 +1603,61 @@ do -- AI
   -- @field OPTION_RADIO_USAGE_KILL
   -- @field JETT_TANKS_IF_EMPTY
   -- @field FORCED_ATTACK
-  
-  --- @type AI.Option.Air.id.FORMATION
-  -- @field LINE_ABREAST
-  -- @field TRAIL
-  -- @field WEDGE
-  -- @field ECHELON_RIGHT
-  -- @field ECHELON_LEFT
-  -- @field FINGER_FOUR
-  -- @field SPREAD_FOUR
-  -- @field WW2_BOMBER_ELEMENT
-  -- @field WW2_BOMBER_ELEMENT_HEIGHT
-  -- @field WW2_FIGHTER_VIC
-  -- @field HEL_WEDGE
-  -- @field HEL_ECHELON
-  -- @field HEL_FRONT
-  -- @field HEL_COLUMN
-  -- @field COMBAT_BOX
-  -- @field JAVELIN_DOWN
 
-  
-  --- @type AI.Option.Air.val
+  ---
+  -- @type AI.Option.Air.val
   -- @field #AI.Option.Air.val.ROE ROE
   -- @field #AI.Option.Air.val.REACTION_ON_THREAT REACTION_ON_THREAT
   -- @field #AI.Option.Air.val.RADAR_USING RADAR_USING
   -- @field #AI.Option.Air.val.FLARE_USING FLARE_USING
   
-  --- @type AI.Option.Air.val.ROE
+  ---
+  -- @type AI.Option.Air.val.ROE
   -- @field WEAPON_FREE
   -- @field OPEN_FIRE_WEAPON_FREE
   -- @field OPEN_FIRE
   -- @field RETURN_FIRE
   -- @field WEAPON_HOLD
-   
-  --- @type AI.Option.Air.val.REACTION_ON_THREAT
+  
+  --- 
+  -- @type AI.Option.Air.val.REACTION_ON_THREAT
   -- @field NO_REACTION
   -- @field PASSIVE_DEFENCE
   -- @field EVADE_FIRE
   -- @field BYPASS_AND_ESCAPE
   -- @field ALLOW_ABORT_MISSION
   
-  --- @type AI.Option.Air.val.RADAR_USING
+  ---
+  -- @type AI.Option.Air.val.RADAR_USING
   -- @field NEVER
   -- @field FOR_ATTACK_ONLY
   -- @field FOR_SEARCH_IF_REQUIRED
   -- @field FOR_CONTINUOUS_SEARCH
   
-  --- @type AI.Option.Air.val.FLARE_USING
+  ---
+  -- @type AI.Option.Air.val.FLARE_USING
   -- @field NEVER
   -- @field AGAINST_FIRED_MISSILE
   -- @field WHEN_FLYING_IN_SAM_WEZ
   -- @field WHEN_FLYING_NEAR_ENEMIES
-
-  --- @type AI.Option.Air.val.ECM_USING
+  
+  ---
+  -- @type AI.Option.Air.val.ECM_USING
   -- @field NEVER_USE
   -- @field USE_IF_ONLY_LOCK_BY_RADAR
   -- @field USE_IF_DETECTED_LOCK_BY_RADAR
   -- @field ALWAYS_USE
-
-  --- @type AI.Option.Air.val.MISSILE_ATTACK
+  
+  ---
+  -- @type AI.Option.Air.val.MISSILE_ATTACK
   -- @field MAX_RANGE
   -- @field NEZ_RANGE
   -- @field HALF_WAY_RMAX_NEZ
   -- @field TARGET_THREAT_EST
   -- @field RANDOM_RANGE
 
-  
-  --- @type AI.Option.Ground.id
+  ---
+  -- @type AI.Option.Ground.id
   -- @field NO_OPTION
   -- @field ROE @{#AI.Option.Ground.val.ROE}
   -- @field FORMATION
@@ -1545,42 +1666,51 @@ do -- AI
   -- @field ENGAGE_AIR_WEAPONS
   -- @field AC_ENGAGEMENT_RANGE_RESTRICTION
   
-  --- @type AI.Option.Ground.mid -- Moose added
+  ---
+  -- @type AI.Option.Ground.mid -- Moose added
   -- @field RESTRICT_AAA_MIN        27
   -- @field RESTRICT_AAA_MAX        29
   -- @field RESTRICT_TARGETS @{#AI.Option.Ground.mval.ENGAGE_TARGETS}  28
   
-  --- @type AI.Option.Ground.val
+  ---
+  -- @type AI.Option.Ground.val
   -- @field #AI.Option.Ground.val.ROE               ROE
   -- @field #AI.Option.Ground.val.ALARM_STATE       ALARM_STATE
   -- @field #AI.Option.Ground.val.ENGAGE_TARGETS    RESTRICT_TARGETS
   
-  --- @type AI.Option.Ground.val.ROE
+  ---
+  -- @type AI.Option.Ground.val.ROE
   -- @field OPEN_FIRE
   -- @field RETURN_FIRE
   -- @field WEAPON_HOLD
   
-  --- @type AI.Option.Ground.mval -- Moose added
+  ---
+  -- @type AI.Option.Ground.mval -- Moose added
   -- @field #AI.Option.Ground.mval.ENGAGE_TARGETS   ENGAGE_TARGETS
   
-  --- @type AI.Option.Ground.mval.ENGAGE_TARGETS -- Moose added
+  ---
+  -- @type AI.Option.Ground.mval.ENGAGE_TARGETS -- Moose added
   -- @field ANY_TARGET -- 0
   -- @field AIR_UNITS_ONLY -- 1
   -- @field GROUND_UNITS_ONLY -- 2
   
-  --- @type AI.Option.Ground.val.ALARM_STATE
+  ---
+  -- @type AI.Option.Ground.val.ALARM_STATE
   -- @field AUTO
   -- @field GREEN
   -- @field RED
   
-  --- @type AI.Option.Naval.id
+  ---
+  -- @type AI.Option.Naval.id
   -- @field NO_OPTION
   -- @field ROE
   
-  --- @type AI.Option.Naval.val
+  ---
+  -- @type AI.Option.Naval.val
   -- @field #AI.Option.Naval.val.ROE ROE
   
-  --- @type AI.Option.Naval.val.ROE
+  ---
+  -- @type AI.Option.Naval.val.ROE
   -- @field OPEN_FIRE
   -- @field RETURN_FIRE
   -- @field WEAPON_HOLD

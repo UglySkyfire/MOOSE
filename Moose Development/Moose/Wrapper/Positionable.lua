@@ -237,22 +237,23 @@ end
 -- @return DCS#Vec3 The 3D point vector of the POSITIONABLE.
 -- @return #nil The POSITIONABLE is not existing or alive.
 function POSITIONABLE:GetVec3()
-
   local DCSPositionable = self:GetDCSObject()
-
   if DCSPositionable then
-
+    --local status, vec3 = pcall(
+      -- function()
+        --  local vec3 = DCSPositionable:getPoint()
+        --  return vec3
+       --end
+    --)
     local vec3 = DCSPositionable:getPoint()
-
-    if vec3 then
+    --if status then
       return vec3
-    else
-      self:E( "ERROR: Cannot get vec3!" )
-    end
+    --else
+      --self:E( { "Cannot get Vec3 from DCS Object", Positionable = self, Alive = self:IsAlive() } )
+    --end
   end
-
   -- ERROR!
-  self:E( { "Cannot GetVec3", Positionable = self, Alive = self:IsAlive() } )
+  self:E( { "Cannot get the Positionable DCS Object for GetVec3", Positionable = self, Alive = self:IsAlive() } )
   return nil
 end
 
@@ -394,6 +395,35 @@ function POSITIONABLE:GetCoordinate()
   return nil
 end
 
+
+--- Triggers an explosion at the coordinates of the positionable.
+-- @param #POSITIONABLE self
+-- @param #number power Power of the explosion in kg TNT. Default 100 kg TNT.
+-- @param #number delay (Optional) Delay of explosion in seconds.
+-- @return #POSITIONABLE self
+function POSITIONABLE:Explode(power, delay)
+
+  -- Default.
+  power=power or 100
+  
+  -- Check if delay or not.
+  if delay and delay>0 then
+    -- Delayed call.
+    self:ScheduleOnce(delay, POSITIONABLE.Explode, self, power, 0)
+  else
+  
+    local coord=self:GetCoord()
+    
+    if coord then  
+      -- Create an explotion at the coordinate of the positionable.
+      coord:Explosion(power)
+    end
+  
+  end
+  
+  return self
+end
+
 --- Returns a COORDINATE object, which is offset with respect to the orientation of the POSITIONABLE.
 -- @param #POSITIONABLE self
 -- @param #number x Offset in the direction "the nose" of the unit is pointing in meters. Default 0 m.
@@ -435,6 +465,115 @@ function POSITIONABLE:GetOffsetCoordinate( x, y, z )
   return coord
 end
 
+--- Returns a COORDINATE object, which is transformed to be relative to the POSITIONABLE. Inverse of @{#POSITIONABLE.GetOffsetCoordinate}.
+-- @param #POSITIONABLE self
+-- @param #number x Offset along the world x-axis in meters. Default 0 m.
+-- @param #number y Offset along the world y-axis in meters. Default 0 m.
+-- @param #number z Offset along the world z-axis in meters. Default 0 m.
+-- @return Core.Point#COORDINATE The relative COORDINATE with respect to the orientation of the  POSITIONABLE.
+function POSITIONABLE:GetRelativeCoordinate( x, y, z )
+
+  -- Default if nil.
+  x = x or 0
+  y = y or 0
+  z = z or 0
+  
+  
+  -- Vector from the origin of the map to self.
+  local selfPos = self:GetVec3()
+  
+  -- Vectors making up self's local coordinate system.
+  local X = self:GetOrientationX()
+  local Y = self:GetOrientationY()
+  local Z = self:GetOrientationZ()
+  
+  -- Offset from self to self's position (still in the world coordinate system).
+  local off = {
+    x = x - selfPos.x,
+    y = y - selfPos.y,
+    z = z - selfPos.z
+  }
+  
+  -- The end result
+  local res = { x = 0, y = 0, z = 0 }
+  
+  -- Matrix equation to solve:
+  -- | X.x, Y.x, Z.x |   | res.x |   | off.x |
+  -- | X.y, Y.y, Z.y | . | res.y | = | off.y |
+  -- | X.z, Y.z, Z.z |   | res.z |   | off.z |
+  
+  -- Use gaussian elimination to solve the system of equations.
+  -- https://en.wikipedia.org/wiki/Gaussian_elimination
+
+  local mat = {
+    { X.x, Y.x, Z.x, off.x },
+    { X.y, Y.y, Z.y, off.y },
+    { X.z, Y.z, Z.z, off.z }
+  }
+  
+  -- Matrix dimensions
+  local m = 3
+  local n = 4
+  
+  -- Pivot indices
+  local h = 1
+  local k = 1
+  
+  while h <= m and k <= n do
+    local v_max = math.abs( mat[h][k] )
+    local i_max = h
+    for i = h,m,1 do
+      local value = math.abs( mat[i][k] )
+        if value > v_max then
+          i_max = i
+          v_max = value
+        end
+    end
+    
+    if mat[i_max][k] == 0 then
+      -- Already all 0s, nothing to do.
+      k = k + 1
+    else
+      -- Swap rows h and i_max
+      local tmp = mat[h]
+      mat[h] = mat[i_max]
+      mat[i_max] = tmp
+      
+      for i = h + 1,m,1 do
+        -- The scaling factor to use to reduce all values in this column
+        local f = mat[i][k] / mat[h][k]
+        mat[i][k] = 0
+        for j = k+1,n,1 do
+          mat[i][j] = mat[i][j] - f*mat[h][j]
+        end
+      end
+      
+      h = h + 1
+      k = k + 1
+    end
+  end
+  
+  -- mat is now in row echelon form:
+  -- | #, #, #, # |
+  -- | 0, #, #, # |
+  -- | 0, 0, #, # |
+  --
+  -- and the linear equation is now effectively:
+  -- | #, #, # |   | res.x |   | # |
+  -- | 0, #, # | . | res.y | = | # |
+  -- | 0, 0, # |   | res.z |   | # |
+  -- this resulting system of equations can be easily solved via substitution.
+  
+  res.z = mat[3][4] / mat[3][3]
+  res.y = (mat[2][4] - res.z * mat[2][3]) / mat[2][2]
+  res.x = (mat[1][4] - res.y * mat[1][2] - res.z * mat[1][3]) / mat[1][1]
+  
+  local coord = COORDINATE:NewFromVec3( res )
+
+  -- Return the relative coordinate.
+  return coord
+end
+
 --- Returns a random @{DCS#Vec3} vector within a range, indicating the point in 3D of the POSITIONABLE within the mission.
 -- @param #POSITIONABLE self
 -- @param #number Radius
@@ -452,10 +591,10 @@ function POSITIONABLE:GetRandomVec3( Radius )
 
     if Radius then
       local PositionableRandomVec3 = {}
-      local angle = math.random() * math.pi * 2;
-      PositionableRandomVec3.x = PositionablePointVec3.x + math.cos( angle ) * math.random() * Radius;
+      local angle = math.random() * math.pi * 2
+      PositionableRandomVec3.x = PositionablePointVec3.x + math.cos( angle ) * math.random() * Radius
       PositionableRandomVec3.y = PositionablePointVec3.y
-      PositionableRandomVec3.z = PositionablePointVec3.z + math.sin( angle ) * math.random() * Radius;
+      PositionableRandomVec3.z = PositionablePointVec3.z + math.sin( angle ) * math.random() * Radius
 
       self:T3( PositionableRandomVec3 )
       return PositionableRandomVec3
@@ -1545,7 +1684,7 @@ do -- Cargo
 
   --- Add cargo.
   -- @param #POSITIONABLE self
-  -- @param Core.Cargo#CARGO Cargo
+  -- @param Cargo.Cargo#CARGO Cargo
   -- @return #POSITIONABLE
   function POSITIONABLE:AddCargo( Cargo )
     self.__.Cargo[Cargo] = Cargo
@@ -1561,7 +1700,7 @@ do -- Cargo
 
   --- Remove cargo.
   -- @param #POSITIONABLE self
-  -- @param Core.Cargo#CARGO Cargo
+  -- @param Cargo.Cargo#CARGO Cargo
   -- @return #POSITIONABLE
   function POSITIONABLE:RemoveCargo( Cargo )
     self.__.Cargo[Cargo] = nil
@@ -1570,7 +1709,7 @@ do -- Cargo
 
   --- Returns if carrier has given cargo.
   -- @param #POSITIONABLE self
-  -- @return Core.Cargo#CARGO Cargo
+  -- @return Cargo.Cargo#CARGO Cargo
   function POSITIONABLE:HasCargo( Cargo )
     return self.__.Cargo[Cargo]
   end
@@ -1594,7 +1733,7 @@ do -- Cargo
 
   --- Get cargo item count.
   -- @param #POSITIONABLE self
-  -- @return Core.Cargo#CARGO Cargo
+  -- @return Cargo.Cargo#CARGO Cargo
   function POSITIONABLE:CargoItemCount()
     local ItemCount = 0
     for CargoName, Cargo in pairs( self.__.Cargo ) do
@@ -1629,6 +1768,93 @@ do -- Cargo
     end
     return self.__.CargoBayWeightLimit - CargoWeight
   end
+  
+  ---
+  -- @field DefaultInfantryWeight
+  -- Abstract out the "XYZ*95" calculation in the Ground POSITIONABLE case, where the table 
+  -- holds number of infantry that the vehicle could carry, instead of actual cargo weights.
+  POSITIONABLE.DefaultInfantryWeight = 95
+
+  ---
+  -- @field CargoBayCapacityValues
+  -- @field CargoBayCapacityValues.Air
+  -- @field CargoBayCapacityValues.Naval
+  -- @field CargoBayCapacityValues.Ground
+  POSITIONABLE.CargoBayCapacityValues = {
+    ["Air"] = {
+      -- C-17A
+      -- Wiki says: max=265,352, empty=128,140, payload=77,516 (134 troops, 1 M1 Abrams tank, 2 M2 Bradley or 3 Stryker)
+      -- DCS  says: max=265,350, empty=125,645, fuel=132,405 ==> Cargo Bay=7300 kg with a full fuel load (lot of fuel!) and 73300 with half a fuel load.
+      --["C-17A"] = 35000,   --77519 cannot be used, because it loads way too much apcs and infantry.
+      -- C-130:
+      -- DCS  says: max=79,380, empty=36,400, fuel=10,415 kg ==> Cargo Bay=32,565 kg with fuel load.
+      -- Wiki says: max=70,307, empty=34,382, payload=19,000 kg (92 passengers, 2-3 Humvees or 2 M113s), max takeoff weight 70,037 kg.
+      -- Here we say two M113s should be transported. Each one weights 11,253 kg according to DCS. So the cargo weight should be 23,000 kg with a full load of fuel.
+      -- This results in a max takeoff weight of 69,815 kg (23,000+10,415+36,400), which is very close to the Wiki value of 70,037 kg.
+      ["C_130"] = 70000,
+    },
+    ["Naval"] = {
+      ["Type_071"]         =   245000,
+      ["LHA_Tarawa"]       =   500000,
+      ["Ropucha_class"]    =   150000,
+      ["Dry_cargo_ship_1"] =    70000,
+      ["Dry_cargo_ship_2"] =    70000,
+      ["Higgins_boat"]     =     3700, -- Higgins Boat can load 3700 kg of general cargo or 36 men (source wikipedia).
+      ["USS_Samuel_Chase"] =    25000, -- Let's say 25 tons for now. Wiki says 33 Higgins boats, which would be 264 tons (can't be right!) and/or 578 troops.
+      ["LST_Mk2"]          =  2100000, -- Can carry 2100 tons according to wiki source!
+      ["speedboat"]        =      500, -- 500 kg ~ 5 persons
+      ["Seawise_Giant"]    =261000000, -- Gross tonnage is 261,000 tonns.
+    },
+    ["Ground"] = {
+      ["AAV7"] = 25*POSITIONABLE.DefaultInfantryWeight,
+      ["Bedford_MWD"] = 8*POSITIONABLE.DefaultInfantryWeight, -- new by kappa
+      ["Blitz_36_6700A"] = 10*POSITIONABLE.DefaultInfantryWeight, -- new by kappa
+      ["BMD_1"] = 9*POSITIONABLE.DefaultInfantryWeight, -- IRL should be 4 passengers
+      ["BMP_1"] = 8*POSITIONABLE.DefaultInfantryWeight,
+      ["BMP_2"] = 7*POSITIONABLE.DefaultInfantryWeight,
+      ["BMP_3"] = 8*POSITIONABLE.DefaultInfantryWeight, -- IRL should be 7+2 passengers
+      ["Boman"] = 25*POSITIONABLE.DefaultInfantryWeight,
+      ["BTR_80"] = 9*POSITIONABLE.DefaultInfantryWeight, -- IRL should be 7 passengers
+      ["BTR_82A"] = 9*POSITIONABLE.DefaultInfantryWeight, -- new by kappa -- IRL should be 7 passengers
+      ["BTR_D"] = 12*POSITIONABLE.DefaultInfantryWeight, -- IRL should be 10 passengers
+      ["Cobra"] = 8*POSITIONABLE.DefaultInfantryWeight,
+      ["Land_Rover_101_FC"] = 11*POSITIONABLE.DefaultInfantryWeight, -- new by kappa
+      ["Land_Rover_109_S3"] = 7*POSITIONABLE.DefaultInfantryWeight, -- new by kappa
+      ["LAV_25"] = 6*POSITIONABLE.DefaultInfantryWeight,
+      ["M_2_Bradley"] = 6*POSITIONABLE.DefaultInfantryWeight,
+      ["M1043_HMMWV_Armament"] = 4*POSITIONABLE.DefaultInfantryWeight,
+      ["M1045_HMMWV_TOW"] = 4*POSITIONABLE.DefaultInfantryWeight,
+      ["M1126_Stryker_ICV"] = 9*POSITIONABLE.DefaultInfantryWeight,
+      ["M1134_Stryker_ATGM"] = 9*POSITIONABLE.DefaultInfantryWeight,
+      ["M2A1_halftrack"] = 9*POSITIONABLE.DefaultInfantryWeight,
+      ["M_113"] = 9*POSITIONABLE.DefaultInfantryWeight, -- IRL should be 11 passengers
+      ["Marder"] = 6*POSITIONABLE.DefaultInfantryWeight,
+      ["MCV_80"] = 9*POSITIONABLE.DefaultInfantryWeight, -- IRL should be 7 passengers
+      ["MLRS_FDDM"] = 4*POSITIONABLE.DefaultInfantryWeight,
+      ["MTLB"] = 25*POSITIONABLE.DefaultInfantryWeight, -- IRL should be 11 passengers
+      ["GAZ_66"] = 8*POSITIONABLE.DefaultInfantryWeight,
+      ["GAZ_3307"] = 12*POSITIONABLE.DefaultInfantryWeight,
+      ["GAZ_3308"] = 14*POSITIONABLE.DefaultInfantryWeight,
+      ["Grad_FDDM"] = 6*POSITIONABLE.DefaultInfantryWeight, -- new by kappa
+      ["KAMAZ_Truck"] = 12*POSITIONABLE.DefaultInfantryWeight,
+      ["KrAZ6322"] = 12*POSITIONABLE.DefaultInfantryWeight,
+      ["M_818"] = 12*POSITIONABLE.DefaultInfantryWeight,
+      ["Tigr_233036"] = 6*POSITIONABLE.DefaultInfantryWeight,
+      ["TPZ"] = 10*POSITIONABLE.DefaultInfantryWeight, -- Fuchs
+      ["UAZ_469"] = 4*POSITIONABLE.DefaultInfantryWeight, -- new by kappa
+      ["Ural_375"] = 12*POSITIONABLE.DefaultInfantryWeight,
+      ["Ural_4320_31"] = 14*POSITIONABLE.DefaultInfantryWeight,
+      ["Ural_4320_APA_5D"] = 10*POSITIONABLE.DefaultInfantryWeight,
+      ["Ural_4320T"] = 14*POSITIONABLE.DefaultInfantryWeight,
+      ["ZBD04A"] = 7*POSITIONABLE.DefaultInfantryWeight, -- new by kappa
+      ["VAB_Mephisto"] = 8*POSITIONABLE.DefaultInfantryWeight, -- new by Apple
+      ["tt_KORD"] = 6*POSITIONABLE.DefaultInfantryWeight, -- 2.7.1 HL/TT
+      ["tt_DSHK"] = 6*POSITIONABLE.DefaultInfantryWeight,
+      ["HL_KORD"] = 6*POSITIONABLE.DefaultInfantryWeight,
+      ["HL_DSHK"] = 6*POSITIONABLE.DefaultInfantryWeight,
+      ["CCKW_353"] = 16*POSITIONABLE.DefaultInfantryWeight, --GMC CCKW 2½-ton 6×6 truck, estimating 16 soldiers,
+    }
+  }
 
   --- Set Cargo Bay Weight Limit in kg.
   -- @param #POSITIONABLE self
@@ -1653,23 +1879,13 @@ do -- Cargo
       
       -- Unit type name.
       local TypeName=Desc.typeName or "Unknown Type"
-
+      TypeName = string.gsub(TypeName,"[%p%s]","_")
+      
       -- When an airplane or helicopter, we calculate the WeightLimit based on the descriptor.
       if self:IsAir() then
 
         -- Max takeoff weight if DCS descriptors have unrealstic values.
-        local Weights = {
-          -- C-17A
-          -- Wiki says: max=265,352, empty=128,140, payload=77,516 (134 troops, 1 M1 Abrams tank, 2 M2 Bradley or 3 Stryker)
-          -- DCS  says: max=265,350, empty=125,645, fuel=132,405 ==> Cargo Bay=7300 kg with a full fuel load (lot of fuel!) and 73300 with half a fuel load.
-          --["C-17A"] = 35000,   --77519 cannot be used, because it loads way too much apcs and infantry.
-          -- C-130:
-          -- DCS  says: max=79,380, empty=36,400, fuel=10,415 kg ==> Cargo Bay=32,565 kg with fuel load.
-          -- Wiki says: max=70,307, empty=34,382, payload=19,000 kg (92 passengers, 2-3 Humvees or 2 M113s), max takeoff weight 70,037 kg.
-          -- Here we say two M113s should be transported. Each one weights 11,253 kg according to DCS. So the cargo weight should be 23,000 kg with a full load of fuel.
-          -- This results in a max takeoff weight of 69,815 kg (23,000+10,415+36,400), which is very close to the Wiki value of 70,037 kg.
-          ["C-130"] = 70000,
-        }
+        local Weights = POSITIONABLE.CargoBayCapacityValues.Air
         
         -- Max (takeoff) weight (empty+fuel+cargo weight).
         local massMax= Desc.massMax or 0
@@ -1704,75 +1920,16 @@ do -- Cargo
       elseif self:IsShip() then
 
         -- Hard coded cargo weights in kg.
-        local Weights = {
-          ["Type_071"]         =   245000,
-          ["LHA_Tarawa"]       =   500000,
-          ["Ropucha-class"]    =   150000,
-          ["Dry-cargo ship-1"] =    70000,
-          ["Dry-cargo ship-2"] =    70000,
-          ["Higgins_boat"]     =     3700, -- Higgins Boat can load 3700 kg of general cargo or 36 men (source wikipedia).
-          ["USS_Samuel_Chase"] =    25000, -- Let's say 25 tons for now. Wiki says 33 Higgins boats, which would be 264 tons (can't be right!) and/or 578 troops.
-          ["LST_Mk2"]          =  2100000, -- Can carry 2100 tons according to wiki source!
-          ["speedboat"]        =      500, -- 500 kg ~ 5 persons
-          ["Seawise_Giant"]    =261000000, -- Gross tonnage is 261,000 tonns.
-        }
+        local Weights = POSITIONABLE.CargoBayCapacityValues.Naval
         self.__.CargoBayWeightLimit = ( Weights[TypeName] or 50000 )
 
       else
 
         -- Hard coded number of soldiers.
-        local Weights = {
-          ["AAV7"] = 25,
-          ["Bedford_MWD"] = 8, -- new by kappa
-          ["Blitz_36-6700A"] = 10, -- new by kappa
-          ["BMD-1"] = 9, -- IRL should be 4 passengers
-          ["BMP-1"] = 8,
-          ["BMP-2"] = 7,
-          ["BMP-3"] = 8, -- IRL should be 7+2 passengers
-          ["Boman"] = 25,
-          ["BTR-80"] = 9, -- IRL should be 7 passengers
-          ["BTR-82A"] = 9, -- new by kappa -- IRL should be 7 passengers
-          ["BTR_D"] = 12, -- IRL should be 10 passengers
-          ["Cobra"] = 8,
-          ["Land_Rover_101_FC"] = 11, -- new by kappa
-          ["Land_Rover_109_S3"] = 7, -- new by kappa
-          ["LAV-25"] = 6,
-          ["M-2 Bradley"] = 6,
-          ["M1043 HMMWV Armament"] = 4,
-          ["M1045 HMMWV TOW"] = 4,
-          ["M1126 Stryker ICV"] = 9,
-          ["M1134 Stryker ATGM"] = 9,
-          ["M2A1_halftrack"] = 9,
-          ["M-113"] = 9, -- IRL should be 11 passengers
-          ["Marder"] = 6,
-          ["MCV-80"] = 9, -- IRL should be 7 passengers
-          ["MLRS FDDM"] = 4,
-          ["MTLB"] = 25, -- IRL should be 11 passengers
-          ["GAZ-66"] = 8,
-          ["GAZ-3307"] = 12,
-          ["GAZ-3308"] = 14,
-          ["Grad_FDDM"] = 6, -- new by kappa
-          ["KAMAZ Truck"] = 12,
-          ["KrAZ6322"] = 12,
-          ["M 818"] = 12,
-          ["Tigr_233036"] = 6,
-          ["TPZ"] = 10, -- Fuchs
-          ["UAZ-469"] = 4, -- new by kappa
-          ["Ural-375"] = 12,
-          ["Ural-4320-31"] = 14,
-          ["Ural-4320 APA-5D"] = 10,
-          ["Ural-4320T"] = 14,
-          ["ZBD04A"] = 7, -- new by kappa
-          ["VAB_Mephisto"] = 8, -- new by Apple
-          ["tt_KORD"] = 6, -- 2.7.1 HL/TT
-          ["tt_DSHK"] = 6,
-          ["HL_KORD"] = 6,
-          ["HL_DSHK"] = 6,
-          ["CCKW_353"] = 16, --GMC CCKW 2½-ton 6×6 truck, estimating 16 soldiers
-        }
+        local Weights = POSITIONABLE.CargoBayCapacityValues.Ground
 
         -- Assuming that each passenger weighs 95 kg on average.
-        local CargoBayWeightLimit = ( Weights[TypeName] or 0 ) * 95
+        local CargoBayWeightLimit = ( Weights[TypeName] or 0 )
 
         self.__.CargoBayWeightLimit = CargoBayWeightLimit
       end

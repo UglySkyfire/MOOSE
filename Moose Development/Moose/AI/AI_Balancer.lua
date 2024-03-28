@@ -9,7 +9,7 @@
 -- 
 -- ===
 -- 
--- ### [Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AIB%20-%20AI%20Balancing)
+-- ### [Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/AI/AI_Balancer)
 -- 
 -- ===
 -- 
@@ -20,7 +20,7 @@
 -- ### Author: **FlightControl**
 -- ### Contributions: 
 -- 
---   * **[Dutch_Baron](https://forums.eagle.ru/member.php?u=112075)**: Working together with James has resulted in the creation of the AI_BALANCER class. James has shared his ideas on balancing AI with air units, and together we made a first design which you can use now :-)
+--   * **Dutch_Baron**: Working together with James has resulted in the creation of the AI_BALANCER class. James has shared his ideas on balancing AI with air units, and together we made a first design which you can use now :-)
 -- 
 -- ===
 -- 
@@ -40,7 +40,7 @@
 -- 
 -- The parent class @{Core.Fsm#FSM_SET} manages the functionality to control the Finite State Machine (FSM). 
 -- The mission designer can tailor the behaviour of the AI_BALANCER, by defining event and state transition methods.
--- An explanation about state and event transition methods can be found in the @{FSM} module documentation.
+-- An explanation about state and event transition methods can be found in the @{Core.Fsm} module documentation.
 -- 
 -- The mission designer can tailor the AI_BALANCER behaviour, by implementing a state or event handling method for the following:
 -- 
@@ -52,7 +52,7 @@
 -- 
 -- ## 2. AI_BALANCER is a FSM
 -- 
--- ![Process](..\Presentations\AI_Balancer\Dia13.JPG)
+-- ![Process](..\Presentations\AI_BALANCER\Dia13.JPG)
 -- 
 -- ### 2.1. AI_BALANCER States
 -- 
@@ -85,7 +85,12 @@
 -- 
 -- Note that when AI returns to an airbase, the AI_BALANCER will trigger the **Return** event and the AI will return, 
 -- otherwise the AI_BALANCER will trigger a **Destroy** event, and the AI will be destroyed.
+--
+-- # Developer Note
 -- 
+-- Note while this class still works, it is no longer supported as the original author stopped active development of MOOSE
+-- Therefore, this class is considered to be deprecated
+--
 -- @field #AI_BALANCER
 AI_BALANCER = {
   ClassName = "AI_BALANCER",
@@ -163,7 +168,8 @@ function AI_BALANCER:ReturnToHomeAirbase( ReturnThresholdRange )
   self.ReturnThresholdRange = ReturnThresholdRange
 end
 
---- @param #AI_BALANCER self
+--- AI_BALANCER:onenterSpawning
+-- @param #AI_BALANCER self
 -- @param Core.Set#SET_GROUP SetGroup
 -- @param #string ClientName
 -- @param Wrapper.Group#GROUP AIGroup
@@ -185,7 +191,8 @@ function AI_BALANCER:onenterSpawning( SetGroup, From, Event, To, ClientName )
   end
 end
 
---- @param #AI_BALANCER self
+--- AI_BALANCER:onenterDestroying
+-- @param #AI_BALANCER self
 -- @param Core.Set#SET_GROUP SetGroup
 -- @param Wrapper.Group#GROUP AIGroup
 function AI_BALANCER:onenterDestroying( SetGroup, From, Event, To, ClientName, AIGroup )
@@ -228,15 +235,16 @@ function AI_BALANCER:onenterReturning( SetGroup, From, Event, To, AIGroup )
 
 end
 
-
---- @param #AI_BALANCER self
+--- AI_BALANCER:onenterMonitoring
+-- @param #AI_BALANCER self
 function AI_BALANCER:onenterMonitoring( SetGroup )
 
   self:T2( { self.SetClient:Count() } )
   --self.SetClient:Flush()
 
   self.SetClient:ForEachClient(
-    --- @param Wrapper.Client#CLIENT Client
+    --- SetClient:ForEachClient
+    -- @param Wrapper.Client#CLIENT Client
     function( Client )
       self:T3(Client.ClientName)
 
@@ -259,7 +267,8 @@ function AI_BALANCER:onenterMonitoring( SetGroup )
             self:T2( RangeZone )
             
             _DATABASE:ForEachPlayerUnit(
-              --- @param Wrapper.Unit#UNIT RangeTestUnit
+              --- Nameless function
+              -- @param Wrapper.Unit#UNIT RangeTestUnit
               function( RangeTestUnit, RangeZone, AIGroup, PlayerInRange )
                 self:T2( { PlayerInRange, RangeTestUnit.UnitName, RangeZone.ZoneName } )
                 if RangeTestUnit:IsInZone( RangeZone ) == true then
@@ -271,7 +280,8 @@ function AI_BALANCER:onenterMonitoring( SetGroup )
                 end
               end,
               
-              --- @param Core.Zone#ZONE_RADIUS RangeZone
+              --- Nameless function
+              -- @param Core.Zone#ZONE_RADIUS RangeZone
               -- @param Wrapper.Group#GROUP AIGroup
               function( RangeZone, AIGroup, PlayerInRange )
                 if PlayerInRange.Value == false then
@@ -302,6 +312,3 @@ function AI_BALANCER:onenterMonitoring( SetGroup )
   
   self:__Monitor( 10 )
 end
-
-
-

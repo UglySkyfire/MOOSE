@@ -30,7 +30,7 @@
 --
 -- ===
 -- 
--- ### [Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/SPA%20-%20Spawning)
+-- ### [Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/Core/Spawn)
 -- 
 -- ===
 --
@@ -58,7 +58,7 @@
 -- @field #SPAWN.SpawnZoneTable SpawnZoneTable
 -- @extends Core.Base#BASE
 
---- Allows to spawn dynamically new @{Core.Group}s.
+--- Allows to spawn dynamically new @{Wrapper.Group}s.
 --
 -- Each SPAWN object needs to be have related **template groups** setup in the Mission Editor (ME),
 -- which is a normal group with the **Late Activation** flag set.
@@ -162,7 +162,17 @@
 -- ### Array formation
 --
 --   * @{#SPAWN.InitArray}(): Make groups visible before they are actually activated, and order these groups like a battalion in an array.
---
+--   
+-- ### Group initial position - if wanted different from template position, for use with e.g. @{#SPAWN.SpawnScheduled}().   
+-- 
+--   * @{#SPAWN.InitPositionCoordinate}(): Set initial position of group via a COORDINATE.
+--   * @{#SPAWN.InitPositionVec2}(): Set initial position of group via a VEC2. 
+--   
+-- ### Set the positions of a group's units to absolute positions, or relative positions to unit No. 1
+-- 
+--   * @{#SPAWN.InitSetUnitRelativePositions}(): Spawn the UNITs of this group with individual relative positions to unit #1 and individual headings.
+--   * @{#SPAWN.InitSetUnitAbsolutePositions}(): Spawn the UNITs of this group with individual absolute positions and individual headings.
+--   
 -- ### Position randomization
 --
 --   * @{#SPAWN.InitRandomizePosition}(): Randomizes the position of @{Wrapper.Group}s that are spawned within a **radius band**, given an Outer and Inner radius, from the point that the spawn happens.
@@ -189,6 +199,22 @@
 --
 --   * @{#SPAWN.InitRepeat}() or @{#SPAWN.InitRepeatOnLanding}(): This method is used to re-spawn automatically the same group after it has landed.
 --   * @{#SPAWN.InitRepeatOnEngineShutDown}(): This method is used to re-spawn automatically the same group after it has landed and it shuts down the engines at the ramp.
+--   
+-- ### Link-16 Datalink STN and SADL IDs (limited at the moment to F15/16/18/AWACS/Tanker/B1B, but not the F15E for clients, SADL A10CII only)
+-- 
+--   *{#SPAWN.InitSTN}(): Set the STN of the first unit in the group. All other units will have consecutive STNs, provided they have not been used yet.
+--   *{#SPAWN.InitSADL}(): Set the SADL of the first unit in the group. All other units will have consecutive SADLs, provided they have not been used yet.
+--   
+-- ### Callsigns
+-- 
+--   *{#SPAWN.InitRandomizeCallsign}(): Set a random callsign name per spawn.
+--   *{#SPAWN.SpawnInitCallSign}(): Set a specific callsign for a spawned group.
+--   
+-- ### Speed
+-- 
+--   *{#SPAWN.InitSpeedMps}(): Set the initial speed on spawning in meters per second.
+--   *{#SPAWN.InitSpeedKph}(): Set the initial speed on spawning in kilometers per hour.
+--   *{#SPAWN.InitSpeedKnots}(): Set the initial speed on spawning in knots.
 --
 -- ## SPAWN **Spawn** methods
 --
@@ -268,7 +294,7 @@ SPAWN = {
 -- @type SPAWN.Takeoff
 -- @extends Wrapper.Group#GROUP.Takeoff
 
---- @field #SPAWN.Takeoff Takeoff
+-- @field #SPAWN.Takeoff Takeoff
 SPAWN.Takeoff = {
   Air = 1,
   Runway = 2,
@@ -276,7 +302,8 @@ SPAWN.Takeoff = {
   Cold = 4,
 }
 
---- @type SPAWN.SpawnZoneTable
+---
+-- @type SPAWN.SpawnZoneTable
 -- @list <Core.Zone#ZONE_BASE> SpawnZone
 
 --- Creates the main object to spawn a @{Wrapper.Group} defined in the DCS ME.
@@ -309,7 +336,7 @@ function SPAWN:New( SpawnTemplatePrefix )
     self.AIOnOff = true -- The AI is on by default when spawning a group.
     self.SpawnUnControlled = false
     self.SpawnInitKeepUnitNames = false -- Overwrite unit names by default with group name.
-    self.DelayOnOff = false -- No intial delay when spawning the first group.
+    self.DelayOnOff = false -- No initial delay when spawning the first group.
     self.SpawnGrouping = nil -- No grouping.
     self.SpawnInitLivery = nil -- No special livery.
     self.SpawnInitSkill = nil -- No special skill.
@@ -317,8 +344,11 @@ function SPAWN:New( SpawnTemplatePrefix )
     self.SpawnInitModu = nil -- No special modulation.
     self.SpawnInitRadio = nil -- No radio comms setting.
     self.SpawnInitModex = nil
+    self.SpawnInitModexPrefix = nil
+    self.SpawnInitModexPostfix = nil
     self.SpawnInitAirbase = nil
     self.TweakedTemplate = false -- Check if the user is using self made template.
+    self.SpawnRandomCallsign = false
 
     self.SpawnGroups = {} -- Array containing the descriptions of each Group to be Spawned.
   else
@@ -335,7 +365,7 @@ end
 -- @param #SPAWN self
 -- @param #string SpawnTemplatePrefix is the name of the Group in the ME that defines the Template.
 -- @param #string SpawnAliasPrefix is the name that will be given to the Group at runtime.
--- @return #SPAWN
+-- @return #SPAWN self
 -- @usage
 -- -- NATO helicopters engaging in the battle field.
 -- Spawn_BE_KA50 = SPAWN:NewWithAlias( 'BE KA-50@RAMP-Ground Defense', 'Helicopter Attacking a City' )
@@ -371,6 +401,8 @@ function SPAWN:NewWithAlias( SpawnTemplatePrefix, SpawnAliasPrefix )
     self.SpawnInitModu = nil -- No special modulation.
     self.SpawnInitRadio = nil -- No radio communication setting.
     self.SpawnInitModex = nil
+    self.SpawnInitModexPrefix = nil
+    self.SpawnInitModexPostfix = nil
     self.SpawnInitAirbase = nil
     self.TweakedTemplate = false -- Check if the user is using self made template.
 
@@ -385,32 +417,129 @@ function SPAWN:NewWithAlias( SpawnTemplatePrefix, SpawnAliasPrefix )
   return self
 end
 
---- Creates a new SPAWN instance to create new groups based on the provided template.
+--- Creates a new SPAWN instance to create new groups based on the provided template. This will also register the template for future use.
 -- @param #SPAWN self
--- @param #table SpawnTemplate is the Template of the Group. This must be a valid Group Template structure!
--- @param #string SpawnTemplatePrefix is the name of the Group that will be given at each spawn.
--- @param #string SpawnAliasPrefix is the name that will be given to the Group at runtime.
--- @return #SPAWN
+-- @param #table SpawnTemplate is the Template of the Group. This must be a valid Group Template structure - see [Hoggit Wiki](https://wiki.hoggitworld.com/view/DCS_func_addGroup)!
+-- @param #string SpawnTemplatePrefix [Mandatory] is the name of the template and the prefix of the GROUP on spawn. The name in the template **will** be overwritten!
+-- @param #string SpawnAliasPrefix [Optional] is the prefix that will be given to the GROUP on spawn.
+-- @param #boolean NoMooseNamingPostfix [Optional] If true, skip the Moose naming additions (like groupname#001-01) - **but** you need to ensure yourself no duplicate group names exist!
+-- @return #SPAWN self
 -- @usage
--- -- Create a new SPAWN object based on a Group Template defined from scratch.
--- Spawn_BE_KA50 = SPAWN:NewWithAlias( 'BE KA-50@RAMP-Ground Defense', 'Helicopter Attacking a City' )
--- @usage
---
---   -- Create a new CSAR_Spawn object based on a normal Group Template to spawn a soldier.
---   local CSAR_Spawn = SPAWN:NewWithFromTemplate( Template, "CSAR", "Pilot" )
---
-function SPAWN:NewFromTemplate( SpawnTemplate, SpawnTemplatePrefix, SpawnAliasPrefix )
-  local self = BASE:Inherit( self, BASE:New() )
-  self:F( { SpawnTemplate, SpawnTemplatePrefix, SpawnAliasPrefix } )
-  if SpawnAliasPrefix == nil or SpawnAliasPrefix == "" then
-    BASE:I( "ERROR: in function NewFromTemplate, required parameter SpawnAliasPrefix is not set" )
+-- -- Spawn a P51 Mustang from scratch
+-- local ttemp =  
+--   {
+--       ["modulation"] = 0,
+--       ["tasks"] = 
+--       {
+--       }, -- end of ["tasks"]
+--       ["task"] = "Reconnaissance",
+--       ["uncontrolled"] = false,
+--       ["route"] = 
+--       {
+--           ["points"] = 
+--           {
+--               [1] = 
+--               {
+--                   ["alt"] = 2000,
+--                   ["action"] = "Turning Point",
+--                   ["alt_type"] = "BARO",
+--                   ["speed"] = 125,
+--                   ["task"] = 
+--                   {
+--                       ["id"] = "ComboTask",
+--                       ["params"] = 
+--                       {
+--                           ["tasks"] = 
+--                           {
+--                           }, -- end of ["tasks"]
+--                       }, -- end of ["params"]
+--                   }, -- end of ["task"]
+--                   ["type"] = "Turning Point",
+--                   ["ETA"] = 0,
+--                   ["ETA_locked"] = true,
+--                   ["y"] = 666285.71428571,
+--                   ["x"] = -312000,
+--                   ["formation_template"] = "",
+--                   ["speed_locked"] = true,
+--               }, -- end of [1]
+--           }, -- end of ["points"]
+--       }, -- end of ["route"]
+--       ["groupId"] = 1,
+--       ["hidden"] = false,
+--       ["units"] = 
+--       {
+--           [1] = 
+--           {
+--               ["alt"] = 2000,
+--               ["alt_type"] = "BARO",
+--               ["livery_id"] = "USAF 364th FS",
+--               ["skill"] = "High",
+--               ["speed"] = 125,
+--               ["type"] = "TF-51D",
+--               ["unitId"] = 1,
+--               ["psi"] = 0,
+--               ["y"] = 666285.71428571,
+--               ["x"] = -312000,
+--               ["name"] = "P51-1-1",
+--               ["payload"] = 
+--               {
+--                   ["pylons"] = 
+--                   {
+--                   }, -- end of ["pylons"]
+--                   ["fuel"] = 340.68,
+--                   ["flare"] = 0,
+--                   ["chaff"] = 0,
+--                   ["gun"] = 100,
+--               }, -- end of ["payload"]
+--               ["heading"] = 0,
+--               ["callsign"] = 
+--               {
+--                   [1] = 1,
+--                   [2] = 1,
+--                   ["name"] = "Enfield11",
+--                   [3] = 1,
+--               }, -- end of ["callsign"]
+--               ["onboard_num"] = "010",
+--           }, -- end of [1]
+--       }, -- end of ["units"]
+--       ["y"] = 666285.71428571,
+--       ["x"] = -312000,
+--       ["name"] = "P51",
+--       ["communication"] = true,
+--       ["start_time"] = 0,
+--       ["frequency"] = 124,
+--   } 
+-- 
+-- 
+-- local mustang = SPAWN:NewFromTemplate(ttemp,"P51D")
+-- -- you MUST set the next three:
+-- mustang:InitCountry(country.id.FRANCE)
+-- mustang:InitCategory(Group.Category.AIRPLANE)
+-- mustang:InitCoalition(coalition.side.BLUE)
+-- mustang:OnSpawnGroup(
+--   function(grp)
+--     MESSAGE:New("Group Spawned: "..grp:GetName(),15,"SPAWN"):ToAll()
+--   end
+-- )
+-- mustang:Spawn()
+-- 
+function SPAWN:NewFromTemplate( SpawnTemplate, SpawnTemplatePrefix, SpawnAliasPrefix, NoMooseNamingPostfix )
+   local self = BASE:Inherit( self, BASE:New() )
+   self:F( { SpawnTemplate, SpawnTemplatePrefix, SpawnAliasPrefix } )
+   --if SpawnAliasPrefix == nil or SpawnAliasPrefix == "" then
+     --BASE:I( "ERROR: in function NewFromTemplate, required parameter SpawnAliasPrefix is not set" )
+     --return nil
+  --end
+  if SpawnTemplatePrefix == nil or SpawnTemplatePrefix == "" then
+    BASE:I( "ERROR: in function NewFromTemplate, required parameter SpawnTemplatePrefix is not set" )
     return nil
   end
 
   if SpawnTemplate then
-    self.SpawnTemplate = SpawnTemplate -- Contains the template structure for a Group Spawn from the Mission Editor. Note that this group must have lateActivation always on!!!
+    self.SpawnTemplate = UTILS.DeepCopy(SpawnTemplate) -- Contains the template structure for a Group Spawn from the Mission Editor. Note that this group must have lateActivation always on!!!
     self.SpawnTemplatePrefix = SpawnTemplatePrefix
-    self.SpawnAliasPrefix = SpawnAliasPrefix
+    self.SpawnAliasPrefix = SpawnAliasPrefix or SpawnTemplatePrefix
+    self.SpawnTemplate.name = SpawnTemplatePrefix
     self.SpawnIndex = 0
     self.SpawnCount = 0 -- The internal counter of the amount of spawning the has happened since SpawnStart.
     self.AliveUnits = 0 -- Contains the counter how many units are currently alive
@@ -433,9 +562,15 @@ function SPAWN:NewFromTemplate( SpawnTemplate, SpawnTemplatePrefix, SpawnAliasPr
     self.SpawnInitModu = nil -- No special modulation.
     self.SpawnInitRadio = nil -- No radio communication setting.
     self.SpawnInitModex = nil
+    self.SpawnInitModexPrefix = nil
+    self.SpawnInitModexPostfix = nil
     self.SpawnInitAirbase = nil
     self.TweakedTemplate = true -- Check if the user is using self made template.
-
+    self.MooseNameing  = true
+    if NoMooseNamingPostfix == true then
+     self.MooseNameing  = false
+    end
+    
     self.SpawnGroups = {} -- Array containing the descriptions of each Group to be Spawned.
   else
     error( "There is no template provided for SpawnTemplatePrefix = '" .. SpawnTemplatePrefix .. "'" )
@@ -605,7 +740,7 @@ end
 -- @param #number Country Country id as number or enumerator:
 --
 --   * @{DCS#country.id.RUSSIA}
---   * @{DCS#county.id.USA}
+--   * @{DCS#country.id.USA}
 --
 -- @return #SPAWN self
 function SPAWN:InitCountry( Country )
@@ -661,6 +796,82 @@ function SPAWN:InitSkill( Skill )
   return self
 end
 
+--- [Airplane - F15/16/18/AWACS/B1B/Tanker only] Set the STN Link16 starting number of the Group; each unit of the spawned group will have a consecutive STN set.
+-- @param #SPAWN self
+-- @param #number Octal The octal number (digits 1..7, max 5 digits, i.e. 1..77777) to set the STN to. Every STN needs to be unique!
+-- @return #SPAWN self
+function SPAWN:InitSTN(Octal)
+  self:F( { Octal = Octal } )
+  self.SpawnInitSTN = Octal or 77777
+  local num = UTILS.OctalToDecimal(Octal)
+  if num == nil or num < 1 then
+    self:E("WARNING - STN "..tostring(Octal).." is not valid!")
+    return self
+  end
+  if _DATABASE.STNS[num] ~= nil then
+    self:E("WARNING - STN already assigned: "..tostring(Octal).." is used for ".._DATABASE.STNS[Octal])
+  end
+  return self
+end
+
+--- [Airplane - A10-C II only] Set the SADL TN starting number of the Group; each unit of the spawned group will have a consecutive SADL set.
+-- @param #SPAWN self
+-- @param #number Octal The octal number (digits 1..7, max 4 digits, i.e. 1..7777) to set the SADL to. Every SADL needs to be unique!
+-- @return #SPAWN self
+function SPAWN:InitSADL(Octal)
+  self:F( { Octal = Octal } )
+  self.SpawnInitSADL = Octal or 7777
+  local num = UTILS.OctalToDecimal(Octal)
+  if num == nil or num < 1 then
+    self:E("WARNING - SADL "..tostring(Octal).." is not valid!")
+    return self
+  end
+  if _DATABASE.SADL[num] ~= nil then
+    self:E("WARNING - SADL already assigned: "..tostring(Octal).." is used for ".._DATABASE.SADL[Octal])
+  end
+  return self
+end
+
+--- [Airplane] Set the initial speed on spawning in meters per second. Useful when spawning in-air only.
+-- @param #SPAWN self
+-- @param #number MPS The speed in MPS to use.
+-- @return #SPAWN self
+function SPAWN:InitSpeedMps(MPS)
+self:F( { MPS = MPS } )
+  if MPS == nil or tonumber(MPS)<0 then
+    MPS=125
+  end
+  self.InitSpeed = MPS
+  return self
+end
+
+--- [Airplane] Set the initial speed on spawning in knots. Useful when spawning in-air only.
+-- @param #SPAWN self
+-- @param #number Knots The speed in knots to use.
+-- @return #SPAWN self
+function SPAWN:InitSpeedKnots(Knots)
+self:F( { Knots = Knots } )
+  if Knots == nil or tonumber(Knots)<0 then
+    Knots=300
+  end
+  self.InitSpeed = UTILS.KnotsToMps(Knots)
+  return self
+end
+
+--- [Airplane] Set the initial speed on spawning in kilometers per hour. Useful when spawning in-air only.
+-- @param #SPAWN self
+-- @param #number KPH The speed in KPH to use.
+-- @return #SPAWN self
+function SPAWN:InitSpeedKph(KPH)
+  self:F( { KPH = KPH } )
+  if KPH == nil or tonumber(KPH)<0 then
+    KPH=UTILS.KnotsToKmph(300)
+  end
+  self.InitSpeed = UTILS.KmphToMps(KPH)
+  return self
+end
+
+
 --- Sets the radio communication on or off. Same as checking/unchecking the COMM box in the mission editor.
 -- @param #SPAWN self
 -- @param #number switch If true (or nil), enables the radio communication. If false, disables the radio for the spawned group.
@@ -700,12 +911,17 @@ end
 --- Sets the modex of the first unit of the group. If more units are in the group, the number is increased by one with every unit.
 -- @param #SPAWN self
 -- @param #number modex Modex of the first unit.
+-- @param #string prefix (optional) String to prefix to modex, e.g. for French AdA Modex, eg. -L-102 then "-L-" would be the prefix.
+-- @param #string postfix (optional) String to postfix to modex, example tbd.
 -- @return #SPAWN self
-function SPAWN:InitModex( modex )
+function SPAWN:InitModex( modex, prefix, postfix )
 
   if modex then
     self.SpawnInitModex = tonumber( modex )
   end
+  
+  self.SpawnInitModexPrefix = prefix
+  self.SpawnInitModexPostfix = postfix
 
   return self
 end
@@ -772,10 +988,8 @@ end
 -- @usage
 --
 --   -- NATO helicopters engaging in the battle field.
---   -- The KA-50 has waypoints Start point ( =0 or SP ), 1, 2, 3, 4, End point (= 5 or DP).
---   -- Waypoints 2 and 3 will only be randomized. The others will remain on their original position with each new spawn of the helicopter.
---   -- The randomization of waypoint 2 and 3 will take place within a radius of 2000 meters.
---   Spawn_BE_KA50 = SPAWN:New( 'BE KA-50@RAMP-Ground Defense' ):InitRandomizeRoute( 2, 2, 2000 )
+--   -- UNIT positions of this group will be randomized around the base unit #1 in a circle of 50 to 500 meters.
+--   Spawn_BE_KA50 = SPAWN:New( 'BE KA-50@RAMP-Ground Defense' ):InitRandomizeUnits( true, 500, 50 )
 --
 function SPAWN:InitRandomizeUnits( RandomizeUnits, OuterRadius, InnerRadius )
   self:F( { self.SpawnTemplatePrefix, RandomizeUnits, OuterRadius, InnerRadius } )
@@ -788,6 +1002,46 @@ function SPAWN:InitRandomizeUnits( RandomizeUnits, OuterRadius, InnerRadius )
     self:_RandomizeRoute( GroupID )
   end
 
+  return self
+end
+
+--- Spawn the UNITs of this group with individual relative positions to unit #1 and individual headings.
+-- @param #SPAWN self
+-- @param #table Positions Table of positions, needs to one entry per unit in the group(!). The table contains one table each for each unit, with x,y, and optionally z 
+-- relative positions, and optionally an individual heading.
+-- @return #SPAWN
+-- @usage
+--
+--   -- NATO helicopter group of three units engaging in the battle field.
+--   local Positions = { [1] = {x = 0, y = 0, heading = 0}, [2] = {x = 50, y = 50, heading = 90}, [3] = {x = -50, y = 50, heading = 180} }
+--   Spawn_BE_KA50 = SPAWN:New( 'BE KA-50@RAMP-Ground Defense' ):InitSetUnitRelativePositions(Positions)
+--
+function SPAWN:InitSetUnitRelativePositions(Positions)
+  self:F({self.SpawnTemplatePrefix, Positions})
+  
+  self.SpawnUnitsWithRelativePositions = true
+  self.UnitsRelativePositions = Positions
+  
+  return self
+end
+
+--- Spawn the UNITs of this group with individual absolute positions and individual headings.
+-- @param #SPAWN self
+-- @param #table Positions Table of positions, needs to one entry per unit in the group(!). The table contains one table each for each unit, with x,y, and optionally z 
+-- absolute positions, and optionally an individual heading.
+-- @return #SPAWN
+-- @usage
+--
+--   -- NATO helicopter group of three units engaging in the battle field.
+--   local Positions = { [1] = {x = 0, y = 0, heading = 0}, [2] = {x = 50, y = 50, heading = 90}, [3] = {x = -50, y = 50, heading = 180} }
+--   Spawn_BE_KA50 = SPAWN:New( 'BE KA-50@RAMP-Ground Defense' ):InitSetUnitAbsolutePositions(Positions)
+--
+function SPAWN:InitSetUnitAbsolutePositions(Positions)
+  self:F({self.SpawnTemplatePrefix, Positions})
+  
+  self.SpawnUnitsWithAbsolutePositions = true
+  self.UnitsAbsolutePositions = Positions
+  
   return self
 end
 
@@ -908,7 +1162,7 @@ end
 --- This method provides the functionality to randomize the spawning of the Groups at a given list of zones of different types.
 -- @param #SPAWN self
 -- @param #table SpawnZoneTable A table with @{Core.Zone} objects. If this table is given, then each spawn will be executed within the given list of @{Core.Zone}s objects.
--- @return #SPAWN
+-- @return #SPAWN self
 -- @usage
 --
 --    -- Create a zone table of the 2 zones.
@@ -935,6 +1189,55 @@ function SPAWN:InitRandomizeZones( SpawnZoneTable )
     self:_RandomizeZones( SpawnGroupID )
   end
 
+  return self
+end
+
+--- [AIR/Fighter only!] This method randomizes the callsign for a new group.
+-- @param #SPAWN self
+-- @return #SPAWN self
+function SPAWN:InitRandomizeCallsign()
+  self.SpawnRandomCallsign = true
+  return self
+end
+
+--- [BLUE AIR only!] This method sets a specific callsign for a spawned group. Use for a group with one unit only!
+-- @param #SPAWN self
+-- @param #number ID ID of the callsign enumerator, e.g. CALLSIGN.Tanker.Texaco - - resulting in e.g. Texaco-2-1
+-- @param #string Name Name of this callsign as it cannot be determined from the ID because of the dependency on the task type of the plane, and the plane type. E.g. "Texaco"
+-- @param #number Minor Minor number, i.e. the unit number within the group, e.g 2 - resulting in e.g. Texaco-2-1
+-- @param #number Major Major number, i.e. the group number of this name, e.g. 1 - resulting in e.g. Texaco-2-1
+-- @return #SPAWN self
+function SPAWN:InitCallSign(ID,Name,Minor,Major)
+  self.SpawnInitCallSign = true
+  self.SpawnInitCallSignID = ID or 1 
+  self.SpawnInitCallSignMinor = Minor or 1
+  self.SpawnInitCallSignMajor = Major or 1 
+  self.SpawnInitCallSignName = string.lower(Name) or "enfield"
+  return self
+end
+
+--- This method sets a spawn position for the group that is different from the location of the template.
+-- @param #SPAWN self
+-- @param Core.Point#COORDINATE Coordinate The position to spawn from
+-- @return #SPAWN self
+function SPAWN:InitPositionCoordinate(Coordinate)
+  self:T( { self.SpawnTemplatePrefix, Coordinate:GetVec2()} )
+  self:InitPositionVec2(Coordinate:GetVec2())
+  return self
+end
+
+--- This method sets a spawn position for the group that is different from the location of the template.
+-- @param #SPAWN self
+-- @param DCS#Vec2 Vec2 The position to spawn from
+-- @return #SPAWN self
+function SPAWN:InitPositionVec2(Vec2)
+  self:T( { self.SpawnTemplatePrefix, Vec2} )
+  self.SpawnInitPosition = Vec2
+  self.SpawnFromNewPosition = true
+  self:I("MaxGroups:"..self.SpawnMaxGroups)
+  for SpawnGroupID = 1, self.SpawnMaxGroups do
+    self:_SetInitialPosition( SpawnGroupID )
+  end
   return self
 end
 
@@ -1028,7 +1331,6 @@ function SPAWN:InitCleanUp( SpawnCleanUpInterval )
   local SpawnGroup, SpawnCursor = self:GetFirstAliveGroup()
   self:T( { "CleanUp Scheduler:", SpawnGroup } )
 
-  -- self.CleanUpFunction = routines.scheduleFunction( self._SpawnCleanUpScheduler, { self }, timer.getTime() + 1, SpawnCleanUpInterval )
   self.CleanUpScheduler = SCHEDULER:New( self, self._SpawnCleanUpScheduler, {}, 1, SpawnCleanUpInterval, 0.2 )
   return self
 end
@@ -1146,7 +1448,7 @@ do -- Delay methods
     return self
   end
 
-  --- Turns the Delay On for the @{Wrapper.Group} when spawning with @{SpawnScheduled}(). In effect then the 1st group will only be spawned
+  --- Turns the Delay On for the @{Wrapper.Group} when spawning with @{#SpawnScheduled}(). In effect then the 1st group will only be spawned
   -- after the number of seconds given in SpawnScheduled as arguments, and not immediately.
   -- @param #SPAWN self
   -- @return #SPAWN The SPAWN object
@@ -1237,12 +1539,18 @@ function SPAWN:SpawnWithIndex( SpawnIndex, NoBirth )
   self:F2( { SpawnTemplatePrefix = self.SpawnTemplatePrefix, SpawnIndex = SpawnIndex, AliveUnits = self.AliveUnits, SpawnMaxGroups = self.SpawnMaxGroups } )
 
   if self:_GetSpawnIndex( SpawnIndex ) then
-
+    
+    if self.SpawnFromNewPosition then
+     self:_SetInitialPosition( SpawnIndex )
+    end
+      
+      
     if self.SpawnGroups[self.SpawnIndex].Visible then
       self.SpawnGroups[self.SpawnIndex].Group:Activate()
     else
 
       local SpawnTemplate = self.SpawnGroups[self.SpawnIndex].SpawnTemplate
+      local SpawnZone = self.SpawnGroups[self.SpawnIndex].SpawnZone
       self:T( SpawnTemplate.name )
 
       if SpawnTemplate then
@@ -1268,6 +1576,23 @@ function SPAWN:SpawnWithIndex( SpawnIndex, NoBirth )
         if self.SpawnRandomizeUnits then
           for UnitID = 1, #SpawnTemplate.units do
             local RandomVec2 = PointVec3:GetRandomVec2InRadius( self.SpawnOuterRadius, self.SpawnInnerRadius )
+            if (SpawnZone) then
+              local inZone = SpawnZone:IsVec2InZone(RandomVec2)
+              local numTries = 1
+              while (not inZone) and (numTries < 20) do
+                if not inZone then
+                  RandomVec2 = PointVec3:GetRandomVec2InRadius( self.SpawnOuterRadius, self.SpawnInnerRadius )
+                  numTries = numTries + 1
+                  inZone = SpawnZone:IsVec2InZone(RandomVec2)
+                  self:I("Retrying " .. numTries .. "spawn " .. SpawnTemplate.name .. " in Zone " .. SpawnZone:GetName() .. "!")
+                  self:I(SpawnZone)
+                end
+              end
+              if (not inZone) then
+                self:I("Could not place unit within zone and within radius!")
+                RandomVec2 = SpawnZone:GetRandomVec2()
+              end
+            end
             SpawnTemplate.units[UnitID].x = RandomVec2.x
             SpawnTemplate.units[UnitID].y = RandomVec2.y
             self:T( 'SpawnTemplate.units[' .. UnitID .. '].x = ' .. SpawnTemplate.units[UnitID].x .. ', SpawnTemplate.units[' .. UnitID .. '].y = ' .. SpawnTemplate.units[UnitID].y )
@@ -1319,12 +1644,14 @@ function SPAWN:SpawnWithIndex( SpawnIndex, NoBirth )
 
           for UnitID = 1, #SpawnTemplate.units do
 
-            if UnitID > 1 then -- don't rotate position of unit #1
-              local unitXOff = SpawnTemplate.units[UnitID].x - pivotX -- rotate position offset around unit #1
-              local unitYOff = SpawnTemplate.units[UnitID].y - pivotY
+            if not self.SpawnRandomizeUnits then
+              if UnitID > 1 then -- don't rotate position of unit #1
+                local unitXOff = SpawnTemplate.units[UnitID].x - pivotX -- rotate position offset around unit #1
+                local unitYOff = SpawnTemplate.units[UnitID].y - pivotY
 
-              SpawnTemplate.units[UnitID].x = pivotX + (unitXOff * cosHeading) - (unitYOff * sinHeading)
-              SpawnTemplate.units[UnitID].y = pivotY + (unitYOff * cosHeading) + (unitXOff * sinHeading)
+                SpawnTemplate.units[UnitID].x = pivotX + (unitXOff * cosHeading) - (unitYOff * sinHeading)
+                SpawnTemplate.units[UnitID].y = pivotY + (unitYOff * cosHeading) + (unitXOff * sinHeading)
+              end
             end
 
             -- adjust heading of all units, including unit #1
@@ -1343,7 +1670,38 @@ function SPAWN:SpawnWithIndex( SpawnIndex, NoBirth )
             SpawnTemplate.units[UnitID].psi = -SpawnTemplate.units[UnitID].heading
           end
         end
-
+        
+        -- Individual relative unit positions + heading
+        if self.SpawnUnitsWithRelativePositions and self.UnitsRelativePositions then
+          local BaseX = SpawnTemplate.units[1].x or 0
+          local BaseY = SpawnTemplate.units[1].y or 0
+          local BaseZ = SpawnTemplate.units[1].z or 0 
+          for UnitID = 1, #SpawnTemplate.units do
+            if self.UnitsRelativePositions[UnitID].heading then
+              SpawnTemplate.units[UnitID].heading = math.rad(self.UnitsRelativePositions[UnitID].heading or 0)
+            end
+            SpawnTemplate.units[UnitID].x = BaseX + (self.UnitsRelativePositions[UnitID].x or 0)
+            SpawnTemplate.units[UnitID].y = BaseY  + (self.UnitsRelativePositions[UnitID].y or 0)
+            if self.UnitsRelativePositions[UnitID].z then
+              SpawnTemplate.units[UnitID].z =  BaseZ + (self.UnitsRelativePositions[UnitID].z or 0)
+            end
+          end
+        end
+        
+       -- Individual asbolute unit positions + heading
+        if self.SpawnUnitsWithAbsolutePositions and self.UnitsAbsolutePositions then
+          for UnitID = 1, #SpawnTemplate.units do
+            if self.UnitsAbsolutePositions[UnitID].heading then
+              SpawnTemplate.units[UnitID].heading = math.rad(self.UnitsAbsolutePositions[UnitID].heading or 0)
+            end
+            SpawnTemplate.units[UnitID].x = self.UnitsAbsolutePositions[UnitID].x or 0
+            SpawnTemplate.units[UnitID].y = self.UnitsAbsolutePositions[UnitID].y or 0
+            if self.UnitsAbsolutePositions[UnitID].z then
+              SpawnTemplate.units[UnitID].z = self.UnitsAbsolutePositions[UnitID].z or 0
+            end
+          end
+        end
+        
         -- Set livery.
         if self.SpawnInitLivery then
           for UnitID = 1, #SpawnTemplate.units do
@@ -1361,7 +1719,10 @@ function SPAWN:SpawnWithIndex( SpawnIndex, NoBirth )
         -- Set tail number.
         if self.SpawnInitModex then
           for UnitID = 1, #SpawnTemplate.units do
-            SpawnTemplate.units[UnitID].onboard_num = string.format( "%03d", self.SpawnInitModex + (UnitID - 1) )
+            local modexnumber = string.format( "%03d", self.SpawnInitModex + (UnitID - 1) )
+            if self.SpawnInitModexPrefix then modexnumber = self.SpawnInitModexPrefix..modexnumber end
+            if self.SpawnInitModexPostfix then modexnumber = modexnumber..self.SpawnInitModexPostfix end
+            SpawnTemplate.units[UnitID].onboard_num = modexnumber
           end
         end
 
@@ -1420,8 +1781,8 @@ function SPAWN:SpawnWithIndex( SpawnIndex, NoBirth )
 
       -- If there is a SpawnFunction hook defined, call it.
       if self.SpawnFunctionHook then
-        -- delay calling this for .1 seconds so that it hopefully comes after the BIRTH event of the group.
-        self.SpawnHookScheduler:Schedule( nil, self.SpawnFunctionHook, { self.SpawnGroups[self.SpawnIndex].Group, unpack( self.SpawnFunctionArguments ) }, 0.1 )
+        -- delay calling this for .3 seconds so that it hopefully comes after the BIRTH event of the group.
+        self.SpawnHookScheduler:Schedule( nil, self.SpawnFunctionHook, { self.SpawnGroups[self.SpawnIndex].Group, unpack( self.SpawnFunctionArguments ) }, 0.3 )
       end
       -- TODO: Need to fix this by putting an "R" in the name of the group when the group repeats.
       -- if self.Repeat then
@@ -1430,6 +1791,7 @@ function SPAWN:SpawnWithIndex( SpawnIndex, NoBirth )
     end
 
     self.SpawnGroups[self.SpawnIndex].Spawned = true
+    self.SpawnGroups[self.SpawnIndex].Group.TemplateDonor = self.SpawnTemplatePrefix
     return self.SpawnGroups[self.SpawnIndex].Group
   else
     -- self:E( { self.SpawnTemplatePrefix, "No more Groups to Spawn:", SpawnIndex, self.SpawnMaxGroups } )
@@ -1444,8 +1806,8 @@ end
 -- @param #number SpawnTime The time interval defined in seconds between each new spawn of new groups.
 -- @param #number SpawnTimeVariation The variation to be applied on the defined time interval between each new spawn.
 -- The variation is a number between 0 and 1, representing the % of variation to be applied on the time interval.
--- @param #boolen WithDelay Do not spawn the **first** group immediately, but delay the spawn as per the calculation below.
--- Effectively the same as @{InitDelayOn}().
+-- @param #boolean WithDelay Do not spawn the **first** group immediately, but delay the spawn as per the calculation below.
+-- Effectively the same as @{#InitDelayOn}().
 -- @return #SPAWN self
 -- @usage
 -- -- NATO helicopters engaging in the battle field.
@@ -1968,14 +2330,18 @@ end
 -- @param #table Spots Table of parking spot IDs. Note that these in general are different from the numbering in the mission editor!
 -- @param #SPAWN.Takeoff Takeoff (Optional) Takeoff type, i.e. either SPAWN.Takeoff.Cold or SPAWN.Takeoff.Hot. Default is Hot.
 -- @return Wrapper.Group#GROUP The group that was spawned or nil when nothing was spawned.
-function SPAWN:SpawnAtParkingSpot( Airbase, Spots, Takeoff ) -- R2.5
+function SPAWN:SpawnAtParkingSpot( Airbase, Spots, Takeoff )
   self:F( { Airbase = Airbase, Spots = Spots, Takeoff = Takeoff } )
-
+  
   -- Ensure that Spots parameter is a table.
   if type( Spots ) ~= "table" then
     Spots = { Spots }
   end
-
+  
+  if type(Airbase) == "string" then
+    Airbase = AIRBASE:FindByName(Airbase)
+  end
+  
   -- Get template group.
   local group = GROUP:FindByName( self.SpawnTemplatePrefix )
 
@@ -2555,7 +2921,7 @@ end
 -- @return Wrapper.Group#GROUP that was spawned or #nil if nothing was spawned.
 -- @usage
 --
---   local SpawnPointVec2 = ZONE:New( ZoneName ):GetPointVec2()
+--   local SpawnPointVec2 = ZONE:New( ZoneName ):GetPointVec2() 
 --
 --   -- Spawn at the zone center position at the height specified in the ME of the group template!
 --   SpawnAirplanes:SpawnFromPointVec2( SpawnPointVec2 )
@@ -2957,7 +3323,11 @@ function SPAWN:_GetTemplate( SpawnTemplatePrefix )
   self:F( { self.SpawnTemplatePrefix, self.SpawnAliasPrefix, SpawnTemplatePrefix } )
 
   local SpawnTemplate = nil
-
+  
+  if _DATABASE.Templates.Groups[SpawnTemplatePrefix] == nil then
+    error( 'No Template exists for SpawnTemplatePrefix = ' .. SpawnTemplatePrefix )
+  end
+  
   local Template = _DATABASE.Templates.Groups[SpawnTemplatePrefix].Template
   self:F( { Template = Template } )
 
@@ -2991,6 +3361,11 @@ function SPAWN:_Prepare( SpawnTemplatePrefix, SpawnIndex ) -- R2.2
   if self.TweakedTemplate ~= nil and self.TweakedTemplate == true then
     BASE:I( "WARNING: You are using a tweaked template." )
     SpawnTemplate = self.SpawnTemplate
+    if self.MooseNameing == true then
+      SpawnTemplate.name = self:SpawnGroupName( SpawnIndex )
+    else
+      SpawnTemplate.name = self:SpawnGroupName()
+    end
   else
     SpawnTemplate = self:_GetTemplate( SpawnTemplatePrefix )
     SpawnTemplate.name = self:SpawnGroupName( SpawnIndex )
@@ -3021,7 +3396,7 @@ function SPAWN:_Prepare( SpawnTemplatePrefix, SpawnIndex ) -- R2.2
       end
     end
   end
-
+  
   if self.SpawnInitKeepUnitNames == false then
     for UnitID = 1, #SpawnTemplate.units do
       SpawnTemplate.units[UnitID].name = string.format( SpawnTemplate.name .. '-%02d', UnitID )
@@ -3029,31 +3404,197 @@ function SPAWN:_Prepare( SpawnTemplatePrefix, SpawnIndex ) -- R2.2
     end
   else
     for UnitID = 1, #SpawnTemplate.units do
-      local UnitPrefix, Rest = string.match( SpawnTemplate.units[UnitID].name, "^([^#]+)#?" ):gsub( "^%s*(.-)%s*$", "%1" )
-      self:T( { UnitPrefix, Rest } )
-
+        local SpawnInitKeepUnitIFF = false
+        if string.find(SpawnTemplate.units[UnitID].name,"#IFF_",1,true) then --Razbam IFF hack for F15E etc
+          SpawnInitKeepUnitIFF = true
+        end
+      local UnitPrefix, Rest
+      if SpawnInitKeepUnitIFF == false then
+        UnitPrefix, Rest = string.match( SpawnTemplate.units[UnitID].name, "^([^#]+)#?" ):gsub( "^%s*(.-)%s*$", "%1" )
+        self:T( { UnitPrefix, Rest } )
+      else
+       UnitPrefix=SpawnTemplate.units[UnitID].name
+      end
       SpawnTemplate.units[UnitID].name = string.format( '%s#%03d-%02d', UnitPrefix, SpawnIndex, UnitID )
       SpawnTemplate.units[UnitID].unitId = nil
     end
   end
 
   -- Callsign
+  
+  if self.SpawnRandomCallsign and SpawnTemplate.units[1].callsign then
+    if type( SpawnTemplate.units[1].callsign ) ~= "number" then
+      -- change callsign
+      local min = 1
+      local max = 8
+      local ctable = CALLSIGN.Aircraft
+      if string.find(SpawnTemplate.units[1].type, "A-10",1,true) then 
+        max = 12
+      end
+      if string.find(SpawnTemplate.units[1].type, "18",1,true) then
+        min = 9 
+        max = 20 
+        ctable = CALLSIGN.F18
+      end
+      if string.find(SpawnTemplate.units[1].type, "16",1,true) then
+        min = 9 
+        max = 20 
+        ctable = CALLSIGN.F16
+      end
+      if SpawnTemplate.units[1].type == "F-15E" then
+        min = 9 
+        max = 18 
+        ctable = CALLSIGN.F15E
+      end
+      local callsignnr = math.random(min,max)
+      local callsignname = "Enfield"
+      for name, value in pairs(ctable) do
+        if value==callsignnr then
+          callsignname = name
+        end
+      end
+      for UnitID = 1, #SpawnTemplate.units do
+        SpawnTemplate.units[UnitID].callsign[1] = callsignnr
+        SpawnTemplate.units[UnitID].callsign[2] = UnitID
+        SpawnTemplate.units[UnitID].callsign[3] = "1"
+        SpawnTemplate.units[UnitID].callsign["name"] = tostring(callsignname)..tostring(UnitID).."1"
+        -- UTILS.PrintTableToLog(SpawnTemplate.units[UnitID].callsign,1) 
+      end         
+    else
+      -- Russkis
+      for UnitID = 1, #SpawnTemplate.units do
+        SpawnTemplate.units[UnitID].callsign = math.random(1,999)
+      end
+    end
+  end
+  
+  if self.SpawnInitCallSign then
+    for UnitID = 1, #SpawnTemplate.units do
+      local Callsign = SpawnTemplate.units[UnitID].callsign
+      if Callsign and type( Callsign ) ~= "number" then
+        SpawnTemplate.units[UnitID].callsign[1] = self.SpawnInitCallSignID 
+        SpawnTemplate.units[UnitID].callsign[2] = self.SpawnInitCallSignMinor
+        SpawnTemplate.units[UnitID].callsign[3] = self.SpawnInitCallSignMajor
+        SpawnTemplate.units[UnitID].callsign["name"] = string.format("%s%d%d",self.SpawnInitCallSignName,self.SpawnInitCallSignMinor,self.SpawnInitCallSignMajor)
+        --UTILS.PrintTableToLog(SpawnTemplate.units[UnitID].callsign,1)
+      end
+    end
+  end
+  
   for UnitID = 1, #SpawnTemplate.units do
     local Callsign = SpawnTemplate.units[UnitID].callsign
     if Callsign then
-      if type( Callsign ) ~= "number" then -- blue callsign
+      if type( Callsign ) ~= "number" and not self.SpawnInitCallSign then -- blue callsign
+        -- UTILS.PrintTableToLog(Callsign,1)
         Callsign[2] = ((SpawnIndex - 1) % 10) + 1
         local CallsignName = SpawnTemplate.units[UnitID].callsign["name"] -- #string
         CallsignName = string.match(CallsignName,"^(%a+)") -- 2.8 - only the part w/o numbers
         local CallsignLen = CallsignName:len()
+        SpawnTemplate.units[UnitID].callsign[2] = UnitID
         SpawnTemplate.units[UnitID].callsign["name"] = CallsignName:sub( 1, CallsignLen ) .. SpawnTemplate.units[UnitID].callsign[2] .. SpawnTemplate.units[UnitID].callsign[3]
-      else
+      elseif type( Callsign ) == "number" then
         SpawnTemplate.units[UnitID].callsign = Callsign + SpawnIndex
       end
+    end
+    -- Speed
+    if self.InitSpeed then
+      SpawnTemplate.units[UnitID].speed = self.InitSpeed
+    end
+    -- Link16
+    local AddProps = SpawnTemplate.units[UnitID].AddPropAircraft
+    if AddProps then
+      if SpawnTemplate.units[UnitID].AddPropAircraft.STN_L16 then
+        if self.SpawnInitSTN then
+          local octal = self.SpawnInitSTN
+          if UnitID > 1 then
+            octal = _DATABASE:GetNextSTN(self.SpawnInitSTN,SpawnTemplate.units[UnitID].name)
+          end
+          SpawnTemplate.units[UnitID].AddPropAircraft.STN_L16 = string.format("%05d",octal)
+        else
+          -- 5 digit octal with leading 0
+          if tonumber(SpawnTemplate.units[UnitID].AddPropAircraft.STN_L16) ~= nil then
+            local octal = SpawnTemplate.units[UnitID].AddPropAircraft.STN_L16
+            local num = UTILS.OctalToDecimal(octal)
+            if _DATABASE.STNS[num] ~= nil or UnitID > 1 then -- STN taken or next unit
+              octal = _DATABASE:GetNextSTN(octal,SpawnTemplate.units[UnitID].name)
+            end
+            SpawnTemplate.units[UnitID].AddPropAircraft.STN_L16 = string.format("%05d",octal)
+          else -- ED bug - chars in here
+            local OSTN = _DATABASE:GetNextSTN(1,SpawnTemplate.units[UnitID].name)
+            SpawnTemplate.units[UnitID].AddPropAircraft.STN_L16 = string.format("%05d",OSTN)
+          end
+        end
+      end
+      -- A10CII
+      if SpawnTemplate.units[UnitID].AddPropAircraft.SADL_TN then
+        -- 4 digit octal with leading 0
+        if self.SpawnInitSADL then
+          local octal = self.SpawnInitSADL
+          if UnitID > 1 then
+            octal = _DATABASE:GetNextSADL(self.SpawnInitSADL,SpawnTemplate.units[UnitID].name)
+          end
+          SpawnTemplate.units[UnitID].AddPropAircraft.SADL_TN = string.format("%04d",octal)
+        else
+          if tonumber(SpawnTemplate.units[UnitID].AddPropAircraft.SADL_TN) ~= nil then
+            local octal = SpawnTemplate.units[UnitID].AddPropAircraft.SADL_TN
+            local num = UTILS.OctalToDecimal(octal)
+            self.SpawnInitSADL = num -- we arrived here seeing that self.SpawnInitSADL == nil, but now that we have a SADL (num), we also need to set it to self.SpawnInitSADL in case
+                                     -- we need to get the next SADL from _DATABASE, or else UTILS.OctalToDecimal() will fail in GetNextSADL
+            if  _DATABASE.SADL[num] ~= nil or UnitID > 1 then -- SADL taken or next unit
+              octal = _DATABASE:GetNextSADL(self.SpawnInitSADL,SpawnTemplate.units[UnitID].name)
+            end
+            SpawnTemplate.units[UnitID].AddPropAircraft.SADL_TN = string.format("%04d",octal)
+          else -- ED bug - chars in here
+            local OSTN = _DATABASE:GetNextSADL(1,SpawnTemplate.units[UnitID].name)
+            SpawnTemplate.units[UnitID].AddPropAircraft.SADL_TN = string.format("%04d",OSTN)
+          end
+        end
+      end
+      -- VoiceCallsignNumber
+      if SpawnTemplate.units[UnitID].AddPropAircraft.VoiceCallsignNumber and type( Callsign ) ~= "number" then
+        SpawnTemplate.units[UnitID].AddPropAircraft.VoiceCallsignNumber = SpawnTemplate.units[UnitID].callsign[2] .. SpawnTemplate.units[UnitID].callsign[3]
+      end
+      -- VoiceCallsignLabel
+      if SpawnTemplate.units[UnitID].AddPropAircraft.VoiceCallsignLabel and type( Callsign ) ~= "number" then
+        local CallsignName = SpawnTemplate.units[UnitID].callsign["name"] -- #string
+        CallsignName = string.match(CallsignName,"^(%a+)") -- 2.8 - only the part w/o numbers
+        local label = "NY" -- Navy One exception
+        if not string.find(CallsignName," ") then
+          label = string.upper(string.match(CallsignName,"^%a")..string.match(CallsignName,"%a$"))
+        end
+        SpawnTemplate.units[UnitID].AddPropAircraft.VoiceCallsignLabel = label
+      end
+      -- UTILS.PrintTableToLog(SpawnTemplate.units[UnitID].AddPropAircraft,1)
+      -- FlightLead
+      if SpawnTemplate.units[UnitID].datalinks and SpawnTemplate.units[UnitID].datalinks.Link16 and SpawnTemplate.units[UnitID].datalinks.Link16.settings then
+        SpawnTemplate.units[UnitID].datalinks.Link16.settings.flightLead = UnitID == 1 and true or false
+      end
+      -- A10CII
+      if SpawnTemplate.units[UnitID].datalinks and SpawnTemplate.units[UnitID].datalinks.SADL and SpawnTemplate.units[UnitID].datalinks.SADL.settings then
+        SpawnTemplate.units[UnitID].datalinks.SADL.settings.flightLead = UnitID == 1 and true or false
+      end
+      -- UTILS.PrintTableToLog(SpawnTemplate.units[UnitID].datalinks,1)   
+    end
+  end
+  -- Link16 team members
+  for UnitID = 1, #SpawnTemplate.units do
+    if SpawnTemplate.units[UnitID].datalinks and SpawnTemplate.units[UnitID].datalinks.Link16 and SpawnTemplate.units[UnitID].datalinks.Link16.network then
+      local team = {}
+      local isF16 = string.find(SpawnTemplate.units[UnitID].type,"F-16",1,true) and true or false
+      for ID = 1, #SpawnTemplate.units do
+        local member = {}
+        member.missionUnitId = ID 
+        if isF16 then
+          member.TDOA = true
+        end
+        table.insert(team,member)
+      end
+      SpawnTemplate.units[UnitID].datalinks.Link16.network.teamMembers = team
     end
   end
 
   self:T3( { "Template:", SpawnTemplate } )
+  --UTILS.PrintTableToLog(SpawnTemplate,1)
   return SpawnTemplate
 
 end
@@ -3121,6 +3662,57 @@ function SPAWN:_RandomizeTemplate( SpawnIndex )
   return self
 end
 
+--- Private method that sets the DCS#Vec2 where the Group will be spawned.
+-- @param #SPAWN self
+-- @param #number SpawnIndex
+-- @return #SPAWN self
+function SPAWN:_SetInitialPosition( SpawnIndex )
+  self:T( { self.SpawnTemplatePrefix, SpawnIndex, self.SpawnRandomizeZones } )
+  
+  if self.SpawnFromNewPosition then
+    
+    self:T( "Preparing Spawn at Vec2 ", self.SpawnInitPosition )
+
+    local SpawnVec2 = self.SpawnInitPosition
+
+    self:T( { SpawnVec2 = SpawnVec2 } )
+
+    local SpawnTemplate = self.SpawnGroups[SpawnIndex].SpawnTemplate
+
+    SpawnTemplate.route = SpawnTemplate.route or {}
+    SpawnTemplate.route.points = SpawnTemplate.route.points or {}
+    SpawnTemplate.route.points[1] = SpawnTemplate.route.points[1] or {}
+    SpawnTemplate.route.points[1].x = SpawnTemplate.route.points[1].x or 0
+    SpawnTemplate.route.points[1].y = SpawnTemplate.route.points[1].y or 0
+      
+    self:T( { Route = SpawnTemplate.route } )
+
+    for UnitID = 1, #SpawnTemplate.units do
+      local UnitTemplate = SpawnTemplate.units[UnitID]
+      self:T( 'Before Translation SpawnTemplate.units[' .. UnitID .. '].x = ' .. UnitTemplate.x .. ', SpawnTemplate.units[' .. UnitID .. '].y = ' .. UnitTemplate.y )
+      local SX = UnitTemplate.x
+      local SY = UnitTemplate.y
+      local BX = SpawnTemplate.route.points[1].x
+      local BY = SpawnTemplate.route.points[1].y
+      local TX = SpawnVec2.x + (SX - BX)
+      local TY = SpawnVec2.y + (SY - BY)
+      UnitTemplate.x = TX
+      UnitTemplate.y = TY
+      -- TODO: Manage altitude based on landheight...
+      -- SpawnTemplate.units[UnitID].alt = SpawnVec2:
+      self:T( 'After Translation SpawnTemplate.units[' .. UnitID .. '].x = ' .. UnitTemplate.x .. ', SpawnTemplate.units[' .. UnitID .. '].y = ' .. UnitTemplate.y )
+    end
+    
+    SpawnTemplate.route.points[1].x = SpawnVec2.x
+    SpawnTemplate.route.points[1].y = SpawnVec2.y
+    SpawnTemplate.x = SpawnVec2.x
+    SpawnTemplate.y = SpawnVec2.y
+    
+  end
+
+  return self
+end
+
 --- Private method that randomizes the @{Core.Zone}s where the Group will be spawned.
 -- @param #SPAWN self
 -- @param #number SpawnIndex
@@ -3144,6 +3736,7 @@ function SPAWN:_RandomizeZones( SpawnIndex )
     self:T( { SpawnVec2 = SpawnVec2 } )
 
     local SpawnTemplate = self.SpawnGroups[SpawnIndex].SpawnTemplate
+    self.SpawnGroups[SpawnIndex].SpawnZone = SpawnZone
 
     self:T( { Route = SpawnTemplate.route } )
 
@@ -3240,7 +3833,7 @@ end
 
 -- TODO Need to delete this... _DATABASE does this now ...
 
---- @param #SPAWN self 
+-- @param #SPAWN self 
 -- @param Core.Event#EVENTDATA EventData
 function SPAWN:_OnBirth( EventData )
   self:F( self.SpawnTemplatePrefix )
@@ -3260,7 +3853,7 @@ function SPAWN:_OnBirth( EventData )
 
 end
 
---- @param #SPAWN self 
+-- @param #SPAWN self 
 -- @param Core.Event#EVENTDATA EventData
 function SPAWN:_OnDeadOrCrash( EventData )
   self:F( self.SpawnTemplatePrefix )
@@ -3334,7 +3927,7 @@ function SPAWN:_OnLand( EventData )
 end
 
 --- Will detect AIR Units shutting down their engines ...
--- When the event takes place, and the method @{RepeatOnEngineShutDown} was called, the spawned Group will Re-SPAWN.
+-- When the event takes place, and the method @{#InitRepeatOnEngineShutDown} was called, the spawned Group will Re-SPAWN.
 -- But only when the Unit was registered to have landed.
 -- @param #SPAWN self
 -- @param Core.Event#EVENTDATA EventData

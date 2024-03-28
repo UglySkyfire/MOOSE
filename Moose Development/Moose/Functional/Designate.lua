@@ -15,10 +15,12 @@
 --  
 -- ===
 -- 
--- ## Missions:
--- 
--- [DES - Designation](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/DES%20-%20Designation)
--- 
+-- ## Additional Material:
+--
+-- * **Demo Missions:** [GitHub](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/Functional/Designate)
+-- * **YouTube videos:** None
+-- * **Guides:** None
+--
 -- ===
 --
 -- Targets detected by recce will be communicated to a group of attacking players.  
@@ -167,9 +169,9 @@
 -- 
 -- ### Contributions: 
 -- 
---   * [**Ciribob**](https://forums.eagle.ru/member.php?u=112175): Showing the way how to lase targets + how laser codes work!!! Explained the autolase script.
---   * [**EasyEB**](https://forums.eagle.ru/member.php?u=112055): Ideas and Beta Testing
---   * [**Wingthor**](https://forums.eagle.ru/member.php?u=123698): Beta Testing
+--   * **Ciribob**: Showing the way how to lase targets + how laser codes work!!! Explained the autolase script.
+--   * **EasyEB**: Ideas and Beta Testing
+--   * **Wingthor**: Beta Testing
 -- 
 -- ### Authors: 
 -- 

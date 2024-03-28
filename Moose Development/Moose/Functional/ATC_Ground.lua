@@ -10,9 +10,7 @@
 -- 
 -- ===
 -- 
--- ## Missions:
--- 
--- [ABP - Airbase Police](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/ABP%20-%20Airbase%20Police)
+-- ## Missions: None
 --
 -- ===
 --
@@ -20,13 +18,15 @@
 -- ### Author: FlightControl - Framework Design &  Programming
 -- ### Refactoring to use the Runway auto-detection: Applevangelist
 -- @date August 2022
+-- Last Update Nov 2023
 --
 -- ===
 -- 
 -- @module Functional.ATC_Ground
 -- @image Air_Traffic_Control_Ground_Operations.JPG
 
---- @type ATC_GROUND
+---
+-- @type ATC_GROUND
 -- @field Core.Set#SET_CLIENT SetClient
 -- @extends Core.Base#BASE
 
@@ -39,7 +39,8 @@ ATC_GROUND = {
   AirbaseNames = nil,
 }
 
---- @type ATC_GROUND.AirbaseNames
+---
+-- @type ATC_GROUND.AirbaseNames
 -- @list <#string>
 
 
@@ -51,7 +52,7 @@ function ATC_GROUND:New( Airbases, AirbaseList )
 
   -- Inherits from BASE
   local self = BASE:Inherit( self, BASE:New() ) -- #ATC_GROUND
-  self:E( { self.ClassName, Airbases } )
+  self:T( { self.ClassName, Airbases } )
 
   self.Airbases = Airbases
   self.AirbaseList = AirbaseList
@@ -82,7 +83,7 @@ function ATC_GROUND:New( Airbases, AirbaseList )
   end
 
   self.SetClient:ForEachClient(
-    --- @param Wrapper.Client#CLIENT Client
+    -- @param Wrapper.Client#CLIENT Client
     function( Client )
       Client:SetState( self, "Speeding", false )
       Client:SetState( self, "Warnings", 0)
@@ -246,11 +247,11 @@ function ATC_GROUND:SetMaximumKickSpeedMiph( MaximumKickSpeedMiph, Airbase )
   return self
 end
 
---- @param #ATC_GROUND self
+-- @param #ATC_GROUND self
 function ATC_GROUND:_AirbaseMonitor()
 
   self.SetClient:ForEachClient(
-    --- @param Wrapper.Client#CLIENT Client
+    -- @param Wrapper.Client#CLIENT Client
     function( Client )
 
       if Client:IsAlive() then
@@ -258,7 +259,7 @@ function ATC_GROUND:_AirbaseMonitor()
         local IsOnGround = Client:InAir() == false
 
         for AirbaseID, AirbaseMeta in pairs( self.Airbases ) do
-          self:E( AirbaseID, AirbaseMeta.KickSpeed )
+          self:T( AirbaseID, AirbaseMeta.KickSpeed )
   
           if AirbaseMeta.Monitor == true and Client:IsInZone( AirbaseMeta.ZoneBoundary )  then
 
@@ -271,7 +272,7 @@ function ATC_GROUND:_AirbaseMonitor()
               
               if IsOnGround then
                 local Taxi = Client:GetState( self, "Taxi" )
-                self:E( Taxi )
+                self:T( Taxi )
                 if Taxi == false then
                   local Velocity = VELOCITY:New( AirbaseMeta.KickSpeed or self.KickSpeed )
                   Client:Message( "Welcome to " .. AirbaseID .. ". The maximum taxiing speed is " .. 
@@ -331,7 +332,7 @@ function ATC_GROUND:_AirbaseMonitor()
                         Client:SetState( self, "Warnings", SpeedingWarnings + 1 )
                       else
                         MESSAGE:New( "Penalty! Player " .. Client:GetPlayerName() .. " has been kicked, due to a severe airbase traffic rule violation ...", 10, "ATC" ):ToAll()
-                        --- @param Wrapper.Client#CLIENT Client
+                        -- @param Wrapper.Client#CLIENT Client
                         Client:Destroy()
                         Client:SetState( self, "Speeding", false )
                         Client:SetState( self, "Warnings", 0 )
@@ -363,7 +364,7 @@ function ATC_GROUND:_AirbaseMonitor()
                       Client:SetState( self, "OffRunwayWarnings", OffRunwayWarnings + 1 )
                     else
                       MESSAGE:New( "Penalty! Player " .. Client:GetPlayerName() .. " has been kicked, due to a severe airbase traffic rule violation ...", 10, "ATC" ):ToAll()
-                      --- @param Wrapper.Client#CLIENT Client
+                      -- @param Wrapper.Client#CLIENT Client
                       Client:Destroy()
                       Client:SetState( self, "IsOffRunway", false )
                       Client:SetState( self, "OffRunwayWarnings", 0 )
@@ -424,13 +425,20 @@ ATC_GROUND_UNIVERSAL = {
 
 --- Creates a new ATC\_GROUND\_UNIVERSAL object. This works on any map.
 -- @param #ATC_GROUND_UNIVERSAL self
--- @param AirbaseList (Optional) A table of Airbase Names.
+-- @param AirbaseList A table of Airbase Names. Leave empty to cover **all** airbases of the map.
 -- @return #ATC_GROUND_UNIVERSAL self
+-- @usage
+--            -- define monitoring for one airbase
+--            local atc=ATC_GROUND_UNIVERSAL:New({AIRBASE.Syria.Gecitkale})
+--            -- set kick speed
+--            atc:SetKickSpeed(UTILS.KnotsToMps(20))
+--            -- start monitoring evey 10 secs
+--            atc:Start(10)
 function ATC_GROUND_UNIVERSAL:New(AirbaseList)
 
   -- Inherits from BASE
   local self = BASE:Inherit( self, BASE:New() ) -- #ATC_GROUND
-  self:E( { self.ClassName } )
+  self:T( { self.ClassName } )
 
   self.Airbases = {}
 
@@ -439,6 +447,13 @@ function ATC_GROUND_UNIVERSAL:New(AirbaseList)
   end
   
   self.AirbaseList = AirbaseList
+  
+  if not self.AirbaseList then
+    self.AirbaseList = {}
+    for _name,_ in pairs(_DATABASE.AIRBASES) do
+      self.AirbaseList[_name]=_name 
+    end
+  end
   
   self.SetClient = SET_CLIENT:New():FilterCategories( "plane" ):FilterStart()
   
@@ -460,8 +475,9 @@ function ATC_GROUND_UNIVERSAL:New(AirbaseList)
     self.Airbases[AirbaseName].Monitor = true
   end
 
+
   self.SetClient:ForEachClient(
-    --- @param Wrapper.Client#CLIENT Client
+    -- @param Wrapper.Client#CLIENT Client
     function( Client )
       Client:SetState( self, "Speeding", false )
       Client:SetState( self, "Warnings", 0)
@@ -679,9 +695,10 @@ end
 -- @param #ATC_GROUND_UNIVERSAL self
 -- @return #ATC_GROUND_UNIVERSAL self
 function ATC_GROUND_UNIVERSAL:_AirbaseMonitor()
-
+  self:I("_AirbaseMonitor")
   self.SetClient:ForEachClient(
-    --- @param Wrapper.Client#CLIENT Client
+    --- Nameless function
+    -- @param Wrapper.Client#CLIENT Client
     function( Client )
 
       if Client:IsAlive() then
@@ -689,7 +706,7 @@ function ATC_GROUND_UNIVERSAL:_AirbaseMonitor()
         local IsOnGround = Client:InAir() == false
 
         for AirbaseID, AirbaseMeta in pairs( self.Airbases ) do
-          self:E( AirbaseID, AirbaseMeta.KickSpeed )
+          self:T( AirbaseID, AirbaseMeta.KickSpeed )
   
           if AirbaseMeta.Monitor == true and Client:IsInZone( AirbaseMeta.ZoneBoundary )  then
 
@@ -706,7 +723,7 @@ function ATC_GROUND_UNIVERSAL:_AirbaseMonitor()
               
               if IsOnGround then
                 local Taxi = Client:GetState( self, "Taxi" )
-                self:E( Taxi )
+                self:T( Taxi )
                 if Taxi == false then
                   local Velocity = VELOCITY:New( AirbaseMeta.KickSpeed or self.KickSpeed )
                   Client:Message( "Welcome to " .. AirbaseID .. ". The maximum taxiing speed is " .. 
@@ -766,7 +783,7 @@ function ATC_GROUND_UNIVERSAL:_AirbaseMonitor()
                         Client:SetState( self, "Warnings", SpeedingWarnings + 1 )
                       else
                         MESSAGE:New( "Penalty! Player " .. Client:GetPlayerName() .. " has been kicked, due to a severe airbase traffic rule violation ...", 10, "ATC" ):ToAll()
-                        --- @param Wrapper.Client#CLIENT Client
+                        -- @param Wrapper.Client#CLIENT Client
                         Client:Destroy()
                         Client:SetState( self, "Speeding", false )
                         Client:SetState( self, "Warnings", 0 )
@@ -798,7 +815,7 @@ function ATC_GROUND_UNIVERSAL:_AirbaseMonitor()
                       Client:SetState( self, "OffRunwayWarnings", OffRunwayWarnings + 1 )
                     else
                       MESSAGE:New( "Penalty! Player " .. Client:GetPlayerName() .. " has been kicked, due to a severe airbase traffic rule violation ...", 10, "ATC" ):ToAll()
-                      --- @param Wrapper.Client#CLIENT Client
+                      -- @param Wrapper.Client#CLIENT Client
                       Client:Destroy()
                       Client:SetState( self, "IsOffRunway", false )
                       Client:SetState( self, "OffRunwayWarnings", 0 )
@@ -838,15 +855,16 @@ end
 
 --- Start SCHEDULER for ATC_GROUND_UNIVERSAL object.
 -- @param #ATC_GROUND_UNIVERSAL self
--- @param RepeatScanSeconds Time in second for defining occurency of alerts.
+-- @param RepeatScanSeconds Time in second for defining schedule of alerts.
 -- @return #ATC_GROUND_UNIVERSAL self
 function ATC_GROUND_UNIVERSAL:Start( RepeatScanSeconds )
   RepeatScanSeconds = RepeatScanSeconds or 0.05
-  self.AirbaseMonitor = SCHEDULER:New( self, self._AirbaseMonitor, { self }, 0, 2, RepeatScanSeconds )
+  self.AirbaseMonitor = SCHEDULER:New( self, self._AirbaseMonitor, { self }, 0, RepeatScanSeconds )
   return self
 end
 
---- @type ATC_GROUND_CAUCASUS
+---
+-- @type ATC_GROUND_CAUCASUS
 -- @extends #ATC_GROUND
 
 --- # ATC\_GROUND\_CAUCASUS, extends @{#ATC_GROUND_UNIVERSAL}
@@ -981,12 +999,12 @@ end
 -- @return nothing
 function ATC_GROUND_CAUCASUS:Start( RepeatScanSeconds )
   RepeatScanSeconds = RepeatScanSeconds or 0.05
-  self.AirbaseMonitor = SCHEDULER:New( self, self._AirbaseMonitor, { self }, 0, 2, RepeatScanSeconds )
+  self.AirbaseMonitor = SCHEDULER:New( self, self._AirbaseMonitor, { self }, 0, RepeatScanSeconds )
 end
 
 
-
---- @type ATC_GROUND_NEVADA
+---
+-- @type ATC_GROUND_NEVADA
 -- @extends #ATC_GROUND
 
 
@@ -1120,11 +1138,11 @@ end
 -- @return nothing
 function ATC_GROUND_NEVADA:Start( RepeatScanSeconds )
   RepeatScanSeconds = RepeatScanSeconds or 0.05
-  self.AirbaseMonitor = SCHEDULER:New( self, self._AirbaseMonitor, { self }, 0, 2, RepeatScanSeconds )
+  self.AirbaseMonitor = SCHEDULER:New( self, self._AirbaseMonitor, { self }, 0, RepeatScanSeconds )
 end
 
-
---- @type ATC_GROUND_NORMANDY
+---
+-- @type ATC_GROUND_NORMANDY
 -- @extends #ATC_GROUND
 
 
@@ -1277,10 +1295,11 @@ end
 -- @return nothing
 function ATC_GROUND_NORMANDY:Start( RepeatScanSeconds )
   RepeatScanSeconds = RepeatScanSeconds or 0.05
-  self.AirbaseMonitor = SCHEDULER:New( self, self._AirbaseMonitor, { self }, 0, 2, RepeatScanSeconds )
+  self.AirbaseMonitor = SCHEDULER:New( self, self._AirbaseMonitor, { self }, 0, RepeatScanSeconds )
 end
 
---- @type ATC_GROUND_PERSIANGULF
+---
+-- @type ATC_GROUND_PERSIANGULF
 -- @extends #ATC_GROUND
 
 
@@ -1419,11 +1438,11 @@ end
 -- @return nothing
 function ATC_GROUND_PERSIANGULF:Start( RepeatScanSeconds )
   RepeatScanSeconds = RepeatScanSeconds or 0.05
-  self.AirbaseMonitor = SCHEDULER:New( self, self._AirbaseMonitor, { self }, 0, 2, RepeatScanSeconds )
+  self.AirbaseMonitor = SCHEDULER:New( self, self._AirbaseMonitor, { self }, 0, RepeatScanSeconds )
 end
           
 
- --- @type ATC_GROUND_MARIANAISLANDS
+ -- @type ATC_GROUND_MARIANAISLANDS
 -- @extends #ATC_GROUND
 
      
@@ -1517,7 +1536,7 @@ end
 --   * @{#ATC_GROUND.SetMaximumKickSpeedKmph}(): Set the maximum speed allowed at an airbase in kilometers per hour.
 --   * @{#ATC_GROUND.SetMaximumKickSpeedMiph}(): Set the maximum speed allowed at an airbase in miles per hour.
 --     
----- @field #ATC_GROUND_MARIANAISLANDS
+-- @field #ATC_GROUND_MARIANAISLANDS
 ATC_GROUND_MARIANAISLANDS = {
   ClassName = "ATC_GROUND_MARIANAISLANDS",
 }
@@ -1529,7 +1548,7 @@ ATC_GROUND_MARIANAISLANDS = {
 function ATC_GROUND_MARIANAISLANDS:New( AirbaseNames )
 
   -- Inherits from BASE
-  local self = BASE:Inherit( self, ATC_GROUND_UNIVERSAL:New( self.Airbases, AirbaseNames ) )
+  local self = BASE:Inherit( self, ATC_GROUND_UNIVERSAL:New( AirbaseNames ) )
 
   self:SetKickSpeedKmph( 50 )
   self:SetMaximumKickSpeedKmph( 150 )
@@ -1543,5 +1562,5 @@ end
 -- @return nothing
 function ATC_GROUND_MARIANAISLANDS:Start( RepeatScanSeconds )
   RepeatScanSeconds = RepeatScanSeconds or 0.05
-  self.AirbaseMonitor = SCHEDULER:New( self, self._AirbaseMonitor, { self }, 0, 2, RepeatScanSeconds )
+  self.AirbaseMonitor = SCHEDULER:New( self, self._AirbaseMonitor, { self }, 0, RepeatScanSeconds )
 end

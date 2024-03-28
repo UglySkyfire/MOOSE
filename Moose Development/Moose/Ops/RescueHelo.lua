@@ -64,8 +64,6 @@
 --
 -- ===
 --
--- ![Banner Image](..\Presentations\RESCUEHELO\RescueHelo_Main.png)
---
 -- # Recue Helo
 --
 -- The rescue helo will fly in close formation with another unit, which is typically an aircraft carrier.
@@ -805,7 +803,9 @@ function RESCUEHELO:_OnEventCrashOrEject(EventData)
       self:T(self.lid..text)
 
       -- Get coordinate of unit.      
-      local coord=unit:GetCoordinate()
+      --local coord=unit:GetCoordinate()
+      local Vec3 = EventData.IniDCSUnit:getPoint() -- Vec3
+      local coord = COORDINATE:NewFromVec3(Vec3)
       
       if coord and self.rescuezone:IsCoordinateInZone(coord) then
       

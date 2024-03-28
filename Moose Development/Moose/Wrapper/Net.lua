@@ -4,8 +4,8 @@
 --
 -- ===
 --
--- ### Author: **applevangelist**
--- # Last Update Feb 2023
+-- ### Author: **Applevangelist**
+-- # Last Update Oct 2023
 -- 
 -- ===
 --
@@ -35,6 +35,7 @@ do
 -- @field #number id
 -- @field #number side
 -- @field #number slot
+-- @field #numner timestamp
 
 --- Encapsules multiplayer environment scripting functions from [net](https://wiki.hoggitworld.com/view/DCS_singleton_net)
 -- with some added FSM functions and options to block/unblock players in MP environments.
@@ -42,7 +43,7 @@ do
 -- @field #NET
 NET = {
   ClassName = "NET",
-  Version = "0.1.0",
+  Version = "0.1.3",
   BlockTime = 600,
   BlockedPilots = {},
   BlockedUCIDs = {},
@@ -90,7 +91,7 @@ function NET:New()
   -- @param #string From State.
   -- @param #string Event Trigger.
   -- @param #string To State.
-  -- @param Wrapper.Unit#UNIT Client Unit Object.
+  -- @param Wrapper.Client#CLIENT Client Object.
   -- @param #string Name Name of joining Pilot.
   -- @return #NET self
   
@@ -196,7 +197,7 @@ function NET:_EventHandler(EventData)
     
     -- Get Player Data
     local name = data.IniPlayerName and data.IniPlayerName or data.IniUnit:GetPlayerName()
-    local ucid = self:GetPlayerUCID(nil,name)
+    local ucid = self:GetPlayerUCID(nil,name) or "none"
     local PlayerID = self:GetPlayerIDByName(name) or "none"
     local PlayerSide, PlayerSlot = self:GetSlot(data.IniUnit)
     local TNow = timer.getTime()
@@ -205,7 +206,7 @@ function NET:_EventHandler(EventData)
     
     -- Joining
     if data.id == EVENTS.PlayerEnterUnit or data.id == EVENTS.PlayerEnterAircraft then
-      self:T(self.lid.."Pilot Joining: "..name.." | UCID: "..ucid)
+      self:T(self.lid.."Pilot Joining: "..name.." | UCID: "..ucid.." | Event ID: "..data.id)
       -- Check for blockages
       local blocked = self:IsAnyBlocked(ucid,name,PlayerID,PlayerSide,PlayerSlot)  
       
@@ -213,14 +214,18 @@ function NET:_EventHandler(EventData)
         -- block pilot
         local outcome = net.force_player_slot(tonumber(PlayerID), 0, '' )
       else
-        self.KnownPilots[name] = {
-          name = name,
-          ucid = ucid,
-          id = PlayerID,
-          side = PlayerSide,
-          slot = PlayerSlot,
-        }
-        self:__PlayerJoined(1,data.IniUnit,name)
+        local client = CLIENT:FindByPlayerName(name) or data.IniUnit
+        if not self.KnownPilots[name] or (self.KnownPilots[name] and TNow-self.KnownPilots[name].timestamp > 3) then
+          self:__PlayerJoined(1,client,name)
+          self.KnownPilots[name] = {
+            name = name,
+            ucid = ucid,
+            id = PlayerID,
+            side = PlayerSide,
+            slot = PlayerSlot,
+            timestamp = TNow,
+          }
+        end
         return self
       end
     end
@@ -465,11 +470,9 @@ end
 -- @return #number PlayerID or nil
 function NET:GetPlayerIDByName(Name)
   if not Name then return nil end
-  local playerList = self:GetPlayerList()
-  self:T({playerList})
+  local playerList = net.get_player_list()
   for i=1,#playerList do
     local playerName = net.get_name(i)
-      self:T({playerName})
       if playerName == Name then
         return playerList[i]
       end
@@ -807,7 +810,7 @@ function NET:onafterRun(From,Event,To)
   self:HandleEvent(EVENTS.Ejection,self._EventHandler)
   self:HandleEvent(EVENTS.Crash,self._EventHandler)
   self:HandleEvent(EVENTS.SelfKillPilot,self._EventHandler)
-  self:__Status(-30)
+  self:__Status(-10)
 end
 
 ---  Stop the event functions

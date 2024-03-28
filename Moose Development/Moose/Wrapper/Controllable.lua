@@ -52,6 +52,7 @@
 --   * @{#CONTROLLABLE.TaskEmbarking}: (AIR) Move the controllable to a Vec2 Point, wait for a defined duration and embark a controllable.
 --   * @{#CONTROLLABLE.TaskEmbarkToTransport}: (GROUND) Embark to a Transport landed at a location.
 --   * @{#CONTROLLABLE.TaskEscort}: (AIR) Escort another airborne controllable.
+--   * @{#CONTROLLABLE.TaskGroundEscort}: (AIR/HELO) Escort a ground controllable.
 --   * @{#CONTROLLABLE.TaskFAC_AttackGroup}: (AIR + GROUND) The task makes the controllable/unit a FAC and orders the FAC to control the target (enemy ground controllable) destruction.
 --   * @{#CONTROLLABLE.TaskFireAtPoint}: (GROUND) Fire some or all ammunition at a VEC2 point.
 --   * @{#CONTROLLABLE.TaskFollow}: (AIR) Following another airborne controllable.
@@ -61,6 +62,7 @@
 --   * @{#CONTROLLABLE.TaskLandAtZone}: (AIR) Land the controllable at a @{Core.Zone#ZONE_RADIUS).
 --   * @{#CONTROLLABLE.TaskOrbitCircle}: (AIR) Orbit at the current position of the first unit of the controllable at a specified altitude.
 --   * @{#CONTROLLABLE.TaskOrbitCircleAtVec2}: (AIR) Orbit at a specified position at a specified altitude during a specified duration with a specified speed.
+--   * @{#CONTROLLABLE.TaskStrafing}: (AIR) Strafe a point Vec2 with onboard weapons.
 --   * @{#CONTROLLABLE.TaskRefueling}: (AIR) Refueling from the nearest tanker. No parameters.
 --   * @{#CONTROLLABLE.TaskRecoveryTanker}: (AIR) Set  group to act as recovery tanker for a naval group.
 --   * @{#CONTROLLABLE.TaskRoute}: (AIR + GROUND) Return a Mission task to follow a given route defined by Points.
@@ -97,7 +99,7 @@
 -- This method can also be used to **embed a function call when a certain waypoint has been reached**.
 -- See below the **Tasks at Waypoints** section.
 --
--- Demonstration Mission: [GRP-502 - Route at waypoint to random point](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/release-2-2-pre/GRP - Group Commands/GRP-502 - Route at waypoint to random point)
+-- Demonstration Mission: [GRP-502 - Route at waypoint to random point](https://github.com/FlightControl-Master/MOOSE_Demos/tree/master/Wrapper/Group/502-Route-at-waypoint-to-random-point)
 --
 -- ## 2.5) Tasks at Waypoints
 --
@@ -487,7 +489,7 @@ end
 
 --- Return a Combo Task taking an array of Tasks.
 -- @param #CONTROLLABLE self
--- @param DCS#TaskArray DCSTasks Array of @{DCSTasking.Task#Task}
+-- @param DCS#TaskArray DCSTasks Array of DCSTasking.Task#Task
 -- @return DCS#Task
 function CONTROLLABLE:TaskCombo( DCSTasks )
 
@@ -516,6 +518,26 @@ function CONTROLLABLE:TaskWrappedAction( DCSCommand, Index )
       action = DCSCommand,
     },
   }
+
+  return DCSTaskWrappedAction
+end
+
+--- Return an Empty Task.
+-- @param #CONTROLLABLE self
+-- @return DCS#Task
+function CONTROLLABLE:TaskEmptyTask()
+
+  local DCSTaskWrappedAction = {
+            ["id"] = "WrappedAction",
+            ["params"] = {
+              ["action"] = {
+                ["id"] = "Script",
+                ["params"] = {
+                  ["command"] = "",
+                },
+              },
+            },
+          }
 
   return DCSTaskWrappedAction
 end
@@ -677,12 +699,12 @@ end
 function CONTROLLABLE:CommandActivateACLS( UnitID, Name, Delay )
 
   -- Command to activate ACLS system.
-  local CommandActivateACLS= { 
-  id = 'ActivateACLS', 
+  local CommandActivateACLS= {
+  id = 'ActivateACLS',
   params = {
-    unitId = UnitID or self:GetID(), 
-    name = Name or "ACL", 
-  } 
+    unitId = UnitID or self:GetID(),
+    name = Name or "ACL",
+  }
 }
 
   self:T({CommandActivateACLS})
@@ -690,7 +712,8 @@ function CONTROLLABLE:CommandActivateACLS( UnitID, Name, Delay )
   if Delay and Delay > 0 then
     SCHEDULER:New( nil, self.CommandActivateACLS, { self, UnitID, Name }, Delay )
   else
-    self:SetCommand( CommandActivateACLS )
+    local controller = self:_GetController()
+    controller:setCommand( CommandActivateACLS )
   end
 
   return self
@@ -703,15 +726,16 @@ end
 function CONTROLLABLE:CommandDeactivateACLS( Delay )
 
   -- Command to activate ACLS system.
-  local CommandDeactivateACLS= { 
-  id = 'DeactivateACLS', 
-  params = { } 
+  local CommandDeactivateACLS= {
+  id = 'DeactivateACLS',
+  params = { }
 }
 
   if Delay and Delay > 0 then
     SCHEDULER:New( nil, self.CommandDeactivateACLS, { self }, Delay )
   else
-    self:SetCommand( CommandDeactivateACLS )
+    local controller = self:_GetController()
+    controller:setCommand( CommandDeactivateACLS )
   end
 
   return self
@@ -754,25 +778,26 @@ end
 -- @param #number Delay (Optional) Delay in seconds before the LINK4 is activated.
 -- @return #CONTROLLABLE self
 function CONTROLLABLE:CommandActivateLink4(Frequency, UnitID, Callsign, Delay)
-  
+
   local freq = Frequency or 336
-  
+
   -- Command to activate Link4 system.
   local CommandActivateLink4= {
     id = "ActivateLink4",
     params= {
-      ["frequency "] = freq*1000000,
+      ["frequency"] = freq*1000000,
       ["unitId"] = UnitID or self:GetID(),
       ["name"] = Callsign or "LNK",
     }
   }
-  
+
   self:T({CommandActivateLink4})
-  
+
   if Delay and Delay>0 then
     SCHEDULER:New(nil, self.CommandActivateLink4, {self, Frequency, UnitID, Callsign}, Delay)
   else
-    self:SetCommand(CommandActivateLink4)
+    local controller = self:_GetController()
+    controller:setCommand(CommandActivateLink4)
   end
 
   return self
@@ -810,7 +835,8 @@ function CONTROLLABLE:CommandDeactivateLink4(Delay)
   if Delay and Delay>0 then
     SCHEDULER:New(nil, self.CommandDeactivateLink4, {self}, Delay)
   else
-    self:SetCommand(CommandDeactivateLink4)
+    local controller = self:_GetController()
+    controller:setCommand(CommandDeactivateLink4)
   end
 
   return self
@@ -884,28 +910,80 @@ function CONTROLLABLE:CommandEPLRS( SwitchOnOff, Delay )
   return self
 end
 
+--- Set unlimited fuel. See [DCS command Unlimited Fuel](https://wiki.hoggitworld.com/view/DCS_command_setUnlimitedFuel).
+-- @param #CONTROLLABLE self
+-- @param #boolean OnOff Set unlimited fuel on = true or off = false.
+-- @param #number Delay (Optional) Set the option only after x seconds.
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:CommandSetUnlimitedFuel(OnOff, Delay)
+
+  local CommandSetFuel = {
+    id = 'SetUnlimitedFuel',
+    params = {
+    value = OnOff
+  }
+}
+
+  if Delay and Delay > 0 then
+    SCHEDULER:New( nil, self.CommandSetUnlimitedFuel, { self, OnOff }, Delay )
+  else
+    self:SetCommand( CommandSetFuel )
+  end
+
+  return self
+end
+
+
 --- Set radio frequency. See [DCS command EPLRS](https://wiki.hoggitworld.com/view/DCS_command_setFrequency)
 -- @param #CONTROLLABLE self
 -- @param #number Frequency Radio frequency in MHz.
 -- @param #number Modulation Radio modulation. Default `radio.modulation.AM`.
+-- @param #number Power (Optional) Power of the Radio in Watts. Defaults to 10.
 -- @param #number Delay (Optional) Delay in seconds before the frequency is set. Default is immediately.
 -- @return #CONTROLLABLE self
-function CONTROLLABLE:CommandSetFrequency( Frequency, Modulation, Delay )
+function CONTROLLABLE:CommandSetFrequency( Frequency, Modulation, Power, Delay )
 
   local CommandSetFrequency = {
     id = 'SetFrequency',
     params = {
       frequency = Frequency * 1000000,
       modulation = Modulation or radio.modulation.AM,
+      power=Power or 10,
     },
   }
 
   if Delay and Delay > 0 then
-    SCHEDULER:New( nil, self.CommandSetFrequency, { self, Frequency, Modulation }, Delay )
+    SCHEDULER:New( nil, self.CommandSetFrequency, { self, Frequency, Modulation, Power } )
   else
     self:SetCommand( CommandSetFrequency )
   end
 
+  return self
+end
+
+--- [AIR] Set radio frequency. See [DCS command EPLRS](https://wiki.hoggitworld.com/view/DCS_command_setFrequencyForUnit)
+-- @param #CONTROLLABLE self
+-- @param #number Frequency Radio frequency in MHz.
+-- @param #number Modulation Radio modulation. Default `radio.modulation.AM`.
+-- @param #number Power (Optional) Power of the Radio in Watts. Defaults to 10.
+-- @param #UnitID UnitID (Optional, if your object is a UNIT) The UNIT ID this is for.
+-- @param #number Delay (Optional) Delay in seconds before the frequency is set. Default is immediately.
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:CommandSetFrequencyForUnit(Frequency,Modulation,Power,UnitID,Delay)
+  local CommandSetFrequencyForUnit={
+    id='SetFrequencyForUnit',
+    params={
+        frequency=Frequency*1000000,
+        modulation=Modulation or radio.modulation.AM,
+        unitId=UnitID or self:GetID(),
+        power=Power or 10,
+    },
+  }
+  if Delay and Delay>0 then
+    SCHEDULER:New(nil,self.CommandSetFrequencyForUnit,{self,Frequency,Modulation,Power,UnitID})
+  else
+    self:SetCommand(CommandSetFrequencyForUnit)
+  end
   return self
 end
 
@@ -1048,6 +1126,42 @@ function CONTROLLABLE:TaskBombing( Vec2, GroupAttack, WeaponExpend, AttackQty, D
   return DCSTask
 end
 
+--- (AIR) Strafe the point on the ground.
+-- @param #CONTROLLABLE self
+-- @param DCS#Vec2 Vec2 2D-coordinates of the point to deliver strafing at.
+-- @param #number AttackQty (optional) This parameter limits maximal quantity of attack. The aircraft/controllable will not make more attack than allowed even if the target controllable not destroyed and the aircraft/controllable still have ammo. If not defined the aircraft/controllable will attack target until it will be destroyed or until the aircraft/controllable will run out of ammo.
+-- @param #number Length (optional) Length of the strafing area.
+-- @param #number WeaponType (optional) The WeaponType. WeaponType is a number associated with a [corresponding weapons flags](https://wiki.hoggitworld.com/view/DCS_enum_weapon_flag)
+-- @param DCS#AI.Task.WeaponExpend WeaponExpend (optional) Determines how much ammunition will be released at each attack. If parameter is not defined the unit / controllable will choose expend on its own discretion, e.g. AI.Task.WeaponExpend.ALL.
+-- @param DCS#Azimuth Direction (optional) Desired ingress direction from the target to the attacking aircraft. Controllable/aircraft will make its attacks from the direction. Of course if there is no way to attack from the direction due the terrain controllable/aircraft will choose another direction.
+-- @param #boolean GroupAttack (optional) If true, all units in the group will attack the Unit when found.
+-- @return DCS#Task The DCS task structure.
+-- @usage
+-- local attacker = GROUP:FindByName("Aerial-1")
+-- local attackVec2 = ZONE:New("Strafe Attack"):GetVec2()
+-- -- Attack with any cannons = 805306368, 4 runs, strafe a field of 200 meters
+-- local task = attacker:TaskStrafing(attackVec2,4,200,805306368,AI.Task.WeaponExpend.ALL)
+-- attacker:SetTask(task,2)
+function CONTROLLABLE:TaskStrafing( Vec2, AttackQty, Length, WeaponType, WeaponExpend, Direction, GroupAttack )
+
+  local DCSTask =  {
+    id = 'Strafing',
+    params = {
+     point = Vec2, -- req
+     weaponType = WeaponType or 1073741822,
+     expend = WeaponExpend or "Auto",
+     attackQty = AttackQty or 1,  -- req
+     attackQtyLimit = AttackQty >1 and true or false,
+     direction = Direction and math.rad(Direction) or 0,
+     directionEnabled = Direction and true or false,
+     groupAttack = GroupAttack or false,
+     length = Length,
+    }
+}
+
+  return DCSTask
+end
+
 --- (AIR) Attacking the map object (building, structure, etc).
 -- @param #CONTROLLABLE self
 -- @param DCS#Vec2 Vec2 2D-coordinates of the point to deliver weapon at.
@@ -1069,7 +1183,6 @@ function CONTROLLABLE:TaskAttackMapObject( Vec2, GroupAttack, WeaponExpend, Atta
       groupAttack      = GroupAttack or false,
       expend           = WeaponExpend or "Auto",
       attackQtyLimit   = AttackQty and true or false,
-      attackQty        = AttackQty,
       directionEnabled = Direction and true or false,
       direction        = Direction and math.rad(Direction) or 0,
       altitudeEnabled  = Altitude and true or false,
@@ -1266,7 +1379,7 @@ end
 
 --- (AIR) Orbit at a position with at a given altitude and speed. Optionally, a race track pattern can be specified.
 -- @param #CONTROLLABLE self
--- @param Core.Point#COORDINATE Coord Coordinate at which the CONTROLLABLE orbits.
+-- @param Core.Point#COORDINATE Coord Coordinate at which the CONTROLLABLE orbits. Can also be given as a `DCS#Vec3` or `DCS#Vec2` object.
 -- @param #number Altitude Altitude in meters of the orbit pattern. Default y component of Coord.
 -- @param #number Speed Speed [m/s] flying the orbit pattern. Default 128 m/s = 250 knots.
 -- @param Core.Point#COORDINATE CoordRaceTrack (Optional) If this coordinate is specified, the CONTROLLABLE will fly a race-track pattern using this and the initial coordinate.
@@ -1275,11 +1388,11 @@ function CONTROLLABLE:TaskOrbit( Coord, Altitude, Speed, CoordRaceTrack )
 
   local Pattern = AI.Task.OrbitPattern.CIRCLE
 
-  local P1 = Coord:GetVec2()
+  local P1 = {x=Coord.x, y=Coord.z or Coord.y}
   local P2 = nil
   if CoordRaceTrack then
     Pattern = AI.Task.OrbitPattern.RACE_TRACK
-    P2 = CoordRaceTrack:GetVec2()
+    P2 = {x=CoordRaceTrack.x, y=CoordRaceTrack.z or CoordRaceTrack.y}
   end
 
   local Task = {
@@ -1382,20 +1495,20 @@ end
 -- @param #number LastWptNumber (optional) Waypoint of carrier group that when reached, ends the recovery tanker task
 -- @return DCS#Task The DCS task structure.
 function CONTROLLABLE:TaskRecoveryTanker(CarrierGroup, Speed, Altitude, LastWptNumber)
-  
+
   local LastWptFlag = type(LastWptNumber) == "number" and true or false
-  
-  local DCSTask = { 
+
+  local DCSTask = {
    id = "RecoveryTanker",
    params = {
        groupId = CarrierGroup:GetID(),
-       speed = Speed, 
-       altitude = Altitude, 
-       lastWptIndexFlag = LastWptFlag, 
+       speed = Speed,
+       altitude = Altitude,
+       lastWptIndexFlag = LastWptFlag,
        lastWptIndex = LastWptNumber
       }
     }
-  
+
   return DCSTask
 end
 
@@ -1476,15 +1589,53 @@ function CONTROLLABLE:TaskFollow( FollowControllable, Vec3, LastWaypointIndex )
   return DCSTask
 end
 
+--- (AIR/HELO) Escort a ground controllable.
+-- The unit / controllable will follow lead unit of the other controllable, additional units of both controllables will continue following their leaders.
+-- The unit / controllable will also protect that controllable from threats of specified types.
+-- @param #CONTROLLABLE self
+-- @param #CONTROLLABLE FollowControllable The controllable to be escorted.
+-- @param #number LastWaypointIndex (optional) Detach waypoint of another controllable. Once reached the unit / controllable Escort task is finished.
+-- @param #number OrbitDistance (optional) Maximum distance helo will orbit around the ground unit in meters. Defaults to 2000 meters.
+-- @param DCS#AttributeNameArray TargetTypes (optional) Array of AttributeName that is contains threat categories allowed to engage. Default {"Ground vehicles"}. See [https://wiki.hoggit.us/view/DCS_enum_attributes](https://wiki.hoggit.us/view/DCS_enum_attributes)
+-- @return DCS#Task The DCS task structure.
+function CONTROLLABLE:TaskGroundEscort( FollowControllable, LastWaypointIndex, OrbitDistance, TargetTypes )
+
+  --  Escort = {
+  --    id = 'GroundEscort',
+  --    params = {
+  --      groupId = Group.ID, -- must
+  --      engagementDistMax = Distance, -- Must. With his task it does not appear to actually define the range AI are allowed to attack at, rather it defines the size length of the orbit. The helicopters will fly up to this set distance before returning to the escorted group.
+  --      lastWptIndexFlag = boolean, -- optional
+  --      lastWptIndex = number, -- optional
+  --      targetTypes = array of AttributeName, -- must
+  --      lastWptIndexFlagChangedManually = boolean, -- must be true
+  --    }
+  --  }
+
+  local DCSTask = {
+    id = 'GroundEscort',
+    params = {
+    groupId           = FollowControllable and FollowControllable:GetID() or nil,
+    engagementDistMax = OrbitDistance or 2000,
+    lastWptIndexFlag  = LastWaypointIndex and true or false,
+    lastWptIndex      = LastWaypointIndex,
+    targetTypes       = TargetTypes or {"Ground vehicles"},
+    lastWptIndexFlagChangedManually = true,
+    },
+  }
+
+  return DCSTask
+end
+
 --- (AIR) Escort another airborne controllable.
 -- The unit / controllable will follow lead unit of another controllable, wingmens of both controllables will continue following their leaders.
 -- The unit / controllable will also protect that controllable from threats of specified types.
 -- @param #CONTROLLABLE self
 -- @param #CONTROLLABLE FollowControllable The controllable to be escorted.
 -- @param DCS#Vec3 Vec3 Position of the unit / lead unit of the controllable relative lead unit of another controllable in frame reference oriented by course of lead unit of another controllable. If another controllable is on land the unit / controllable will orbit around.
--- @param #number LastWaypointIndex Detach waypoint of another controllable. Once reached the unit / controllable Follow task is finished.
--- @param #number EngagementDistance Maximal distance from escorted controllable to threat. If the threat is already engaged by escort escort will disengage if the distance becomes greater than 1.5 * engagementDistMax.
--- @param DCS#AttributeNameArray TargetTypes Array of AttributeName that is contains threat categories allowed to engage. Default {"Air"}.
+-- @param #number LastWaypointIndex Detach waypoint of another controllable. Once reached the unit / controllable Escort task is finished.
+-- @param #number EngagementDistance Maximal distance from escorted controllable to threat in meters. If the threat is already engaged by escort escort will disengage if the distance becomes greater than 1.5 * engagementDistMax.
+-- @param DCS#AttributeNameArray TargetTypes Array of AttributeName that is contains threat categories allowed to engage. Default {"Air"}. See https://wiki.hoggit.us/view/DCS_enum_attributes
 -- @return DCS#Task The DCS task structure.
 function CONTROLLABLE:TaskEscort( FollowControllable, Vec3, LastWaypointIndex, EngagementDistance, TargetTypes )
 
@@ -1500,8 +1651,7 @@ function CONTROLLABLE:TaskEscort( FollowControllable, Vec3, LastWaypointIndex, E
   --    }
   --  }
 
-  local DCSTask
-  DCSTask = {
+  local DCSTask = {
     id = 'Escort',
     params = {
       groupId           = FollowControllable and FollowControllable:GetID() or nil,
@@ -1661,7 +1811,7 @@ function CONTROLLABLE:EnRouteTaskAntiShip(TargetTypes, Priority)
     id      = 'EngageTargets',
     key     = "AntiShip",
     --auto    = false,
-    --enabled = true,    
+    --enabled = true,
     params  = {
       targetTypes = TargetTypes or {"Ships"},
       priority    = Priority or 0
@@ -1682,7 +1832,7 @@ function CONTROLLABLE:EnRouteTaskSEAD(TargetTypes, Priority)
     id      = 'EngageTargets',
     key     = "SEAD",
     --auto    = false,
-    --enabled = true,    
+    --enabled = true,
     params  = {
       targetTypes = TargetTypes or {"Air Defence"},
       priority    = Priority or 0
@@ -1692,7 +1842,30 @@ function CONTROLLABLE:EnRouteTaskSEAD(TargetTypes, Priority)
   return DCSTask
 end
 
---- (AIR) Engaging a controllable. The task does not assign the target controllable to the unit/controllable to attack now; it just allows the unit/controllable to engage the target controllable as well as other assigned targets.
+--- (AIR) Enroute CAP task.
+-- @param #CONTROLLABLE self
+-- @param DCS#AttributeNameArray TargetTypes Array of target categories allowed to engage. Default `{"Air"}`.
+-- @param #number Priority (Optional) All en-route tasks have the priority parameter. This is a number (less value - higher priority) that determines actions related to what task will be performed first. Default 0.
+-- @return DCS#Task The DCS task structure.
+function CONTROLLABLE:EnRouteTaskCAP(TargetTypes, Priority)
+
+  local DCSTask = {
+    id      = 'EngageTargets',
+    key     = "CAP",
+    --auto    = true,
+    enabled = true,
+    params  = {
+      targetTypes = TargetTypes or {"Air"},
+      priority    = Priority or 0
+    }
+  }
+
+  return DCSTask
+end
+
+--- (AIR) Engaging a controllable. The task does not assign the target controllable to the unit/controllable to attack now;
+-- it just allows the unit/controllable to engage the target controllable as well as other assigned targets.
+-- See [hoggit](https://wiki.hoggitworld.com/view/DCS_task_engageGroup).
 -- @param #CONTROLLABLE self
 -- @param #CONTROLLABLE AttackGroup The Controllable to be attacked.
 -- @param #number Priority All en-route tasks have the priority parameter. This is a number (less value - higher priority) that determines actions related to what task will be performed first.
@@ -1705,24 +1878,8 @@ end
 -- @return DCS#Task The DCS task structure.
 function CONTROLLABLE:EnRouteTaskEngageGroup( AttackGroup, Priority, WeaponType, WeaponExpend, AttackQty, Direction, Altitude, AttackQtyLimit )
 
-  --  EngageControllable  = {
-  --   id = 'EngageControllable ',
-  --   params = {
-  --     groupId = Group.ID,
-  --     weaponType = number,
-  --     expend = enum AI.Task.WeaponExpend,
-  --     attackQty = number,
-  --     directionEnabled = boolean,
-  --     direction = Azimuth,
-  --     altitudeEnabled = boolean,
-  --     altitude = Distance,
-  --     attackQtyLimit = boolean,
-  --     priority = number,
-  --   }
-  -- }
-
   local DCSTask = {
-    id = 'EngageControllable',
+    id = 'EngageGroup',
     params = {
       groupId          = AttackGroup:GetID(),
       weaponType       = WeaponType,
@@ -1741,6 +1898,7 @@ function CONTROLLABLE:EnRouteTaskEngageGroup( AttackGroup, Priority, WeaponType,
 end
 
 --- (AIR) Search and attack the Unit.
+-- See [hoggit](https://wiki.hoggitworld.com/view/DCS_task_engageUnit).
 -- @param #CONTROLLABLE self
 -- @param Wrapper.Unit#UNIT EngageUnit The UNIT.
 -- @param #number Priority (optional) All en-route tasks have the priority parameter. This is a number (less value - higher priority) that determines actions related to what task will be performed first.
@@ -1776,6 +1934,7 @@ function CONTROLLABLE:EnRouteTaskEngageUnit( EngageUnit, Priority, GroupAttack, 
 end
 
 --- (AIR) Aircraft will act as an AWACS for friendly units (will provide them with information about contacts). No parameters.
+-- [hoggit](https://wiki.hoggitworld.com/view/DCS_task_awacs).
 -- @param #CONTROLLABLE self
 -- @return DCS#Task The DCS task structure.
 function CONTROLLABLE:EnRouteTaskAWACS()
@@ -1789,6 +1948,7 @@ function CONTROLLABLE:EnRouteTaskAWACS()
 end
 
 --- (AIR) Aircraft will act as a tanker for friendly units. No parameters.
+-- See [hoggit](https://wiki.hoggitworld.com/view/DCS_task_tanker).
 -- @param #CONTROLLABLE self
 -- @return DCS#Task The DCS task structure.
 function CONTROLLABLE:EnRouteTaskTanker()
@@ -1804,6 +1964,7 @@ end
 -- En-route tasks for ground units/controllables
 
 --- (GROUND) Ground unit (EW-radar) will act as an EWR for friendly units (will provide them with information about contacts). No parameters.
+-- See [hoggit](https://wiki.hoggitworld.com/view/DCS_task_ewr).
 -- @param #CONTROLLABLE self
 -- @return DCS#Task The DCS task structure.
 function CONTROLLABLE:EnRouteTaskEWR()
@@ -1821,22 +1982,29 @@ end
 --- (AIR + GROUND) The task makes the controllable/unit a FAC and lets the FAC to choose the target (enemy ground controllable) as well as other assigned targets.
 -- The killer is player-controlled allied CAS-aircraft that is in contact with the FAC.
 -- If the task is assigned to the controllable lead unit will be a FAC.
+-- See [hoggit](https://wiki.hoggitworld.com/view/DCS_task_fac_engageGroup).
 -- @param #CONTROLLABLE self
 -- @param #CONTROLLABLE AttackGroup Target CONTROLLABLE.
 -- @param #number Priority (Optional) All en-route tasks have the priority parameter. This is a number (less value - higher priority) that determines actions related to what task will be performed first. Default is 0.
 -- @param #number WeaponType (Optional) Bitmask of weapon types those allowed to use. Default is "Auto".
 -- @param DCS#AI.Task.Designation Designation (Optional) Designation type.
 -- @param #boolean Datalink (optional) Allows to use datalink to send the target information to attack aircraft. Enabled by default.
+-- @param #number CallsignID CallsignID, e.g. `CALLSIGN.JTAC.Anvil` for ground or `CALLSIGN.Aircraft.Ford` for air.
+-- @param #number CallsignNumber Callsign first number, e.g. 2 for `Ford-2`.
 -- @return DCS#Task The DCS task structure.
-function CONTROLLABLE:EnRouteTaskFAC_EngageGroup( AttackGroup, Priority, WeaponType, Designation, Datalink )
+function CONTROLLABLE:EnRouteTaskFAC_EngageGroup( AttackGroup, Priority, WeaponType, Designation, Datalink, Frequency, Modulation, CallsignID, CallsignNumber )
 
   local DCSTask = {
-    id = 'FAC_EngageControllable',
+    id = 'FAC_EngageGroup',
     params = {
       groupId     = AttackGroup:GetID(),
       weaponType  = WeaponType or "Auto",
       designation = Designation,
       datalink    = Datalink and Datalink or false,
+      frequency   = (Frequency or 133)*1000000,
+      modulation  = Modulation or radio.modulation.AM,
+      callname    = CallsignID,
+      number      = CallsignNumber,
       priority    = Priority or 0,
     },
   }
@@ -1845,27 +2013,26 @@ function CONTROLLABLE:EnRouteTaskFAC_EngageGroup( AttackGroup, Priority, WeaponT
 end
 
 --- (AIR + GROUND) The task makes the controllable/unit a FAC and lets the FAC to choose a targets (enemy ground controllable) around as well as other assigned targets.
--- The killer is player-controlled allied CAS-aircraft that is in contact with the FAC.
--- If the task is assigned to the controllable lead unit will be a FAC.
+-- Assigns the controlled group to act as a Forward Air Controller or JTAC. Any detected targets will be assigned as targets to the player via the JTAC radio menu.
+-- Target designation is set to auto and is dependent on the circumstances.
+-- See [hoggit](https://wiki.hoggitworld.com/view/DCS_task_fac).
 -- @param #CONTROLLABLE self
--- @param DCS#Distance Radius  The maximal distance from the FAC to a target.
+-- @param #number Frequency Frequency in MHz. Default 133 MHz.
+-- @param #number Modulation Radio modulation. Default `radio.modulation.AM`.
+-- @param #number CallsignID CallsignID, e.g. `CALLSIGN.JTAC.Anvil` for ground or `CALLSIGN.Aircraft.Ford` for air.
+-- @param #number CallsignNumber Callsign first number, e.g. 2 for `Ford-2`.
 -- @param #number Priority All en-route tasks have the priority parameter. This is a number (less value - higher priority) that determines actions related to what task will be performed first.
 -- @return DCS#Task The DCS task structure.
-function CONTROLLABLE:EnRouteTaskFAC( Radius, Priority )
-
-  --  FAC = {
-  --    id = 'FAC',
-  --    params = {
-  --      radius = Distance,
-  --      priority = number
-  --    }
-  --  }
+function CONTROLLABLE:EnRouteTaskFAC( Frequency, Modulation, CallsignID, CallsignNumber, Priority )
 
   local DCSTask = {
     id = 'FAC',
     params = {
-      radius = Radius,
-      priority = Priority
+      frequency  = (Frequency or 133)*1000000,
+      modulation = Modulation or radio.modulation.AM,
+      callname   = CallsignID,
+      number     = CallsignNumber,
+      priority   = Priority or 0
     }
   }
 
@@ -2006,7 +2173,7 @@ do -- Patrol methods
       local Waypoint = Waypoints[#Waypoints]
       PatrolGroup:SetTaskWaypoint( Waypoint, TaskRoute ) -- Set for the given Route at Waypoint 2 the TaskRouteToZone.
 
-      PatrolGroup:Route( Waypoints ) -- Move after a random seconds to the Route. See the Route method for details.
+      PatrolGroup:Route( Waypoints, 2 ) -- Move after a random seconds to the Route. See the Route method for details.
     end
   end
 
@@ -2088,7 +2255,7 @@ do -- Patrol methods
   -- @return #CONTROLLABLE
   function CONTROLLABLE:PatrolZones( ZoneList, Speed, Formation, DelayMin, DelayMax )
 
-    if not type( ZoneList ) == "table" then
+    if type( ZoneList ) ~= "table" then
       ZoneList = { ZoneList }
     end
 
@@ -2161,7 +2328,7 @@ function CONTROLLABLE:TaskRoute( Points )
       route = {points = Points},
     },
   }
-  
+
   return DCSTask
 end
 
@@ -2600,7 +2767,7 @@ do -- Route methods
   -- @param Core.Zone#ZONE Zone The zone where to route to.
   -- @param #boolean Randomize Defines whether to target point gets randomized within the Zone.
   -- @param #number Speed The speed in m/s. Default is 5.555 m/s = 20 km/h.
-  -- @param Base#FORMATION Formation The formation string.
+  -- @param Core.Base#FORMATION Formation The formation string.
   function CONTROLLABLE:TaskRouteToZone( Zone, Randomize, Speed, Formation )
     self:F2( Zone )
 
@@ -2660,7 +2827,7 @@ do -- Route methods
   -- @param #CONTROLLABLE self
   -- @param DCS#Vec2 Vec2 The Vec2 where to route to.
   -- @param #number Speed The speed in m/s. Default is 5.555 m/s = 20 km/h.
-  -- @param Base#FORMATION Formation The formation string.
+  -- @param Core.Base#FORMATION Formation The formation string.
   function CONTROLLABLE:TaskRouteToVec2( Vec2, Speed, Formation )
 
     local DCSControllable = self:GetDCSObject()
@@ -2734,7 +2901,7 @@ end
 function CONTROLLABLE:GetTaskMission()
   self:F2( self.ControllableName )
 
-  return routines.utils.deepCopy( _DATABASE.Templates.Controllables[self.ControllableName].Template )
+  return UTILS.DeepCopy( _DATABASE.Templates.Controllables[self.ControllableName].Template )
 end
 
 --- Return the mission route of the controllable.
@@ -2743,7 +2910,7 @@ end
 function CONTROLLABLE:GetTaskRoute()
   self:F2( self.ControllableName )
 
-  return routines.utils.deepCopy( _DATABASE.Templates.Controllables[self.ControllableName].Template.route.points )
+  return UTILS.DeepCopy( _DATABASE.Templates.Controllables[self.ControllableName].Template.route.points )
 end
 
 --- Return the route of a controllable by using the @{Core.Database#DATABASE} class.
@@ -2779,7 +2946,7 @@ function CONTROLLABLE:CopyRoute( Begin, End, Randomize, Radius )
 
     for TPointID = Begin + 1, #Template.route.points - End do
       if Template.route.points[TPointID] then
-        Points[#Points + 1] = routines.utils.deepCopy( Template.route.points[TPointID] )
+        Points[#Points + 1] = UTILS.DeepCopy( Template.route.points[TPointID] )
         if Randomize then
           if not Radius then
             Radius = 500
@@ -2798,7 +2965,7 @@ function CONTROLLABLE:CopyRoute( Begin, End, Randomize, Radius )
 end
 
 --- Return the detected targets of the controllable.
--- The optional parametes specify the detection methods that can be applied.
+-- The optional parameters specify the detection methods that can be applied.
 -- If no detection method is given, the detection will use all the available methods by default.
 -- @param #CONTROLLABLE self
 -- @param #boolean DetectVisual (optional)
@@ -3633,54 +3800,66 @@ function CONTROLLABLE:OptionProhibitAfterburner( Prohibit )
   return self
 end
 
---- Defines the usage of Electronic Counter Measures by airborne forces. Disables the ability for AI to use their ECM.
+--- [Air] Defines the usage of Electronic Counter Measures by airborne forces.
+-- @param #CONTROLLABLE self
+-- @param #number ECMvalue Can be - 0=Never on, 1=if locked by radar, 2=if detected by radar, 3=always on, defaults to 1
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:OptionECM( ECMvalue )
+  self:F2( { self.ControllableName } )
+
+  local DCSControllable = self:GetDCSObject()
+  if DCSControllable then
+    local Controller = self:_GetController()
+
+    if self:IsAir() then
+      Controller:setOption( AI.Option.Air.id.ECM_USING, ECMvalue or 1 )
+    end
+
+  end
+
+  return self
+end
+
+--- [Air] Defines the usage of Electronic Counter Measures by airborne forces. Disables the ability for AI to use their ECM.
 -- @param #CONTROLLABLE self
 -- @return #CONTROLLABLE self
 function CONTROLLABLE:OptionECM_Never()
   self:F2( { self.ControllableName } )
 
-  if self:IsAir() then
-    self:SetOption( AI.Option.Air.id.ECM_USING, 0 )
-  end
+  self:OptionECM(0)
 
   return self
 end
 
---- Defines the usage of Electronic Counter Measures by airborne forces. If the AI is actively being locked by an enemy radar they will enable their ECM jammer.
+--- [Air] Defines the usage of Electronic Counter Measures by airborne forces. If the AI is actively being locked by an enemy radar they will enable their ECM jammer.
 -- @param #CONTROLLABLE self
 -- @return #CONTROLLABLE self
 function CONTROLLABLE:OptionECM_OnlyLockByRadar()
   self:F2( { self.ControllableName } )
 
-  if self:IsAir() then
-    self:SetOption( AI.Option.Air.id.ECM_USING, 1 )
-  end
+  self:OptionECM(1)
 
   return self
 end
 
---- Defines the usage of Electronic Counter Measures by airborne forces. If the AI is being detected by a radar they will enable their ECM.
+--- [Air] Defines the usage of Electronic Counter Measures by airborne forces. If the AI is being detected by a radar they will enable their ECM.
 -- @param #CONTROLLABLE self
 -- @return #CONTROLLABLE self
 function CONTROLLABLE:OptionECM_DetectedLockByRadar()
   self:F2( { self.ControllableName } )
 
-  if self:IsAir() then
-    self:SetOption( AI.Option.Air.id.ECM_USING, 2 )
-  end
+  self:OptionECM(2)
 
   return self
 end
 
---- Defines the usage of Electronic Counter Measures by airborne forces. AI will leave their ECM on all the time.
+--- [Air] Defines the usage of Electronic Counter Measures by airborne forces. AI will leave their ECM on all the time.
 -- @param #CONTROLLABLE self
 -- @return #CONTROLLABLE self
 function CONTROLLABLE:OptionECM_AlwaysOn()
   self:F2( { self.ControllableName } )
 
-  if self:IsAir() then
-    self:SetOption( AI.Option.Air.id.ECM_USING, 3 )
-  end
+  self:OptionECM(3)
 
   return self
 end
@@ -3692,6 +3871,10 @@ end
 -- @param #CONTROLLABLE self
 -- @param #table WayPoints If WayPoints is given, then use the route.
 -- @return #CONTROLLABLE self
+-- @usage Intended Workflow is:
+-- mygroup:WayPointInitialize()
+-- mygroup:WayPointFunction( WayPoint, WayPointIndex, WayPointFunction, ... )
+-- mygroup:WayPointExecute()
 function CONTROLLABLE:WayPointInitialize( WayPoints )
   self:F( { WayPoints } )
 
@@ -3723,9 +3906,15 @@ end
 -- @param #number WayPointIndex When defining multiple WayPoint functions for one WayPoint, use WayPointIndex to set the sequence of actions.
 -- @param #function WayPointFunction The waypoint function to be called when the controllable moves over the waypoint. The waypoint function takes variable parameters.
 -- @return #CONTROLLABLE self
+-- @usage Intended Workflow is:
+-- mygroup:WayPointInitialize()
+-- mygroup:WayPointFunction( WayPoint, WayPointIndex, WayPointFunction, ... )
+-- mygroup:WayPointExecute()
 function CONTROLLABLE:WayPointFunction( WayPoint, WayPointIndex, WayPointFunction, ... )
   self:F2( { WayPoint, WayPointIndex, WayPointFunction } )
-
+  if not self.WayPoints then
+    self:WayPointInitialize()
+  end
   table.insert( self.WayPoints[WayPoint].task.params.tasks, WayPointIndex )
   self.WayPoints[WayPoint].task.params.tasks[WayPointIndex] = self:TaskFunction( WayPointFunction, arg )
   return self
@@ -3738,6 +3927,10 @@ end
 -- @param #number WayPoint The WayPoint from where to execute the mission.
 -- @param #number WaitTime The amount seconds to wait before initiating the mission.
 -- @return #CONTROLLABLE self
+-- @usage Intended Workflow is:
+-- mygroup:WayPointInitialize()
+-- mygroup:WayPointFunction( WayPoint, WayPointIndex, WayPointFunction, ... )
+-- mygroup:WayPointExecute()
 function CONTROLLABLE:WayPointExecute( WayPoint, WaitTime )
   self:F( { WayPoint, WaitTime } )
 
@@ -3835,7 +4028,7 @@ function CONTROLLABLE:OptionAAAttackRange( range )
     local Controller = self:_GetController()
     if Controller then
       if self:IsAir() then
-        self:SetOption( AI.Option.Air.val.MISSILE_ATTACK, range )
+        self:SetOption( AI.Option.Air.id.MISSILE_ATTACK, range )
       end
     end
     return self
@@ -3867,6 +4060,130 @@ function CONTROLLABLE:OptionEngageRange( EngageRange )
   return nil
 end
 
+--- [AIR] Set how the AI uses the onboard radar.
+-- @param #CONTROLLABLE self
+-- @param #number Option Options are: `NEVER = 0, FOR_ATTACK_ONLY = 1,FOR_SEARCH_IF_REQUIRED = 2, FOR_CONTINUOUS_SEARCH = 3`
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:SetOptionRadarUsing(Option)
+ self:F2( { self.ControllableName } )
+  if self:IsAir() then
+    self:SetOption(AI.Option.Air.id.RADAR_USING,Option)
+  end
+  return self
+end
+
+--- [AIR] Set how the AI uses the onboard radar. Here: never.
+-- @param #CONTROLLABLE self
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:SetOptionRadarUsingNever()
+ self:F2( { self.ControllableName } )
+  if self:IsAir() then
+    self:SetOption(AI.Option.Air.id.RADAR_USING,0)
+  end
+  return self
+end
+
+--- [AIR] Set how the AI uses the onboard radar, here: for attack only.
+-- @param #CONTROLLABLE self
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:SetOptionRadarUsingForAttackOnly()
+ self:F2( { self.ControllableName } )
+  if self:IsAir() then
+    self:SetOption(AI.Option.Air.id.RADAR_USING,1)
+  end
+  return self
+end
+
+--- [AIR] Set how the AI uses the onboard radar, here: when required for searching.
+-- @param #CONTROLLABLE self
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:SetOptionRadarUsingForSearchIfRequired()
+ self:F2( { self.ControllableName } )
+  if self:IsAir() then
+    self:SetOption(AI.Option.Air.id.RADAR_USING,2)
+  end
+  return self
+end
+
+--- [AIR] Set how the AI uses the onboard radar, here: always on.
+-- @param #CONTROLLABLE self
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:SetOptionRadarUsingForContinousSearch()
+ self:F2( { self.ControllableName } )
+  if self:IsAir() then
+    self:SetOption(AI.Option.Air.id.RADAR_USING,3)
+  end
+  return self
+end
+
+--- [AIR] Set if the AI is reporting passing of waypoints
+-- @param #CONTROLLABLE self
+-- @param #boolean OnOff If true or nil, AI will report passing waypoints, if false, it will not.
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:SetOptionWaypointPassReport(OnOff)
+ self:F2( { self.ControllableName } )
+ local onoff = (OnOff == nil or OnOff == true) and false or true
+  if self:IsAir() then
+    self:SetOption(AI.Option.Air.id.PROHIBIT_WP_PASS_REPORT,onoff)
+  end
+  return self
+end
+
+--- [AIR] Set the AI to not report anything over the radio - radio silence
+-- @param #CONTROLLABLE self
+-- @param #boolean OnOff If true or nil, radio is set to silence, if false radio silence is lifted.
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:SetOptionRadioSilence(OnOff)
+ local onoff = (OnOff == true or OnOff == nil) and true or false
+ self:F2( { self.ControllableName } )
+  if self:IsAir() then
+    self:SetOption(AI.Option.Air.id.SILENCE,onoff)
+  end
+  return self
+end
+
+--- [AIR] Set the AI to report contact for certain types of objects.
+-- @param #CONTROLLABLE self
+-- @param #table Objects Table of attribute names for which AI reports contact. Defaults to {"Air"}. See [Hoggit Wiki](https://wiki.hoggitworld.com/view/DCS_enum_attributes)
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:SetOptionRadioContact(Objects)
+ self:F2( { self.ControllableName } )
+ if not Objects then Objects = {"Air"} end
+ if type(Objects) ~= "table" then Objects = {Objects} end
+  if self:IsAir() then
+    self:SetOption(AI.Option.Air.id.OPTION_RADIO_USAGE_CONTACT,Objects)
+  end
+  return self
+end
+
+--- [AIR] Set the AI to report engaging certain types of objects.
+-- @param #CONTROLLABLE self
+-- @param #table Objects Table of attribute names for which AI reports contact. Defaults to {"Air"}, see [Hoggit Wiki](https://wiki.hoggitworld.com/view/DCS_enum_attributes)
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:SetOptionRadioEngage(Objects)
+ self:F2( { self.ControllableName } )
+ if not Objects then Objects = {"Air"} end
+ if type(Objects) ~= "table" then Objects = {Objects} end
+  if self:IsAir() then
+    self:SetOption(AI.Option.Air.id.OPTION_RADIO_USAGE_ENGAGE,Objects)
+  end
+  return self
+end
+
+--- [AIR] Set the AI to report killing certain types of objects.
+-- @param #CONTROLLABLE self
+-- @param #table Objects Table of attribute names for which AI reports contact. Defaults to {"Air"}, see [Hoggit Wiki](https://wiki.hoggitworld.com/view/DCS_enum_attributes)
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:SetOptionRadioKill(Objects)
+ self:F2( { self.ControllableName } )
+ if not Objects then Objects = {"Air"} end
+ if type(Objects) ~= "table" then Objects = {Objects} end
+  if self:IsAir() then
+    self:SetOption(AI.Option.Air.id.OPTION_RADIO_USAGE_KILL,Objects)
+  end
+  return self
+end
+
 --- (GROUND) Relocate controllable to a random point within a given radius; use e.g.for evasive actions; Note that not all ground controllables can actually drive, also the alarm state of the controllable might stop it from moving.
 -- @param #CONTROLLABLE self
 -- @param #number speed Speed of the controllable, default 20
@@ -3874,14 +4191,22 @@ end
 -- @param #boolean onroad If true, route on road (less problems with AI way finding), default true
 -- @param #boolean shortcut If true and onroad is set, take a shorter route - if available - off road, default false
 -- @param #string formation Formation string as in the mission editor, e.g. "Vee", "Diamond", "Line abreast", etc. Defaults to "Off Road"
+-- @param #boolean onland (optional) If true, try up to 50 times to get a coordinate on land.SurfaceType.LAND. Note - this descriptor value is not reliably implemented on all maps.
 -- @return #CONTROLLABLE self
-function CONTROLLABLE:RelocateGroundRandomInRadius( speed, radius, onroad, shortcut, formation )
+function CONTROLLABLE:RelocateGroundRandomInRadius( speed, radius, onroad, shortcut, formation, onland )
   self:F2( { self.ControllableName } )
 
   local _coord = self:GetCoordinate()
   local _radius = radius or 500
   local _speed = speed or 20
   local _tocoord = _coord:GetRandomCoordinateInRadius( _radius, 100 )
+  if onland then
+    for i=1,50 do
+      local island = _tocoord:GetSurfaceType() == land.SurfaceType.LAND and true or false
+      if island then break end
+      _tocoord = _coord:GetRandomCoordinateInRadius( _radius, 100 )
+    end
+  end
   local _onroad = onroad or true
   local _grptsk = {}
   local _candoroad = false
@@ -3941,10 +4266,10 @@ function CONTROLLABLE:IsSubmarine()
 end
 
 
---- Sets the controlled group to go at the specified speed in meters per second. 
+--- Sets the controlled group to go at the specified speed in meters per second.
 -- @param #CONTROLLABLE self
 -- @param #number Speed Speed in meters per second
--- @param #boolean Keep (Optional) When set to true, will maintain the speed on passing waypoints. If not present or false, the controlled group will return to the speed as defined by their route. 
+-- @param #boolean Keep (Optional) When set to true, will maintain the speed on passing waypoints. If not present or false, the controlled group will return to the speed as defined by their route.
 -- @return #CONTROLLABLE self
 function CONTROLLABLE:SetSpeed(Speed, Keep)
   self:F2( { self.ControllableName } )
@@ -3963,7 +4288,7 @@ end
 --- [AIR] Sets the controlled aircraft group to fly at the specified altitude in meters.
 -- @param #CONTROLLABLE self
 -- @param #number Altitude Altitude in meters.
--- @param #boolean Keep (Optional) When set to true, will maintain the altitude on passing waypoints. If not present or false, the controlled group will return to the altitude as defined by their route. 
+-- @param #boolean Keep (Optional) When set to true, will maintain the altitude on passing waypoints. If not present or false, the controlled group will return to the altitude as defined by their route.
 -- @param #string AltType (Optional) Specifies the altitude type used. If nil, the altitude type of the current waypoint will be used. Accepted values are "BARO" and "RADIO".
 -- @return #CONTROLLABLE self
 function CONTROLLABLE:SetAltitude(Altitude, Keep, AltType)
@@ -3979,5 +4304,1265 @@ function CONTROLLABLE:SetAltitude(Altitude, Keep, AltType)
       end
     end
   end
+  return self
+end
+
+--- Return an empty task shell for Aerobatics.
+-- @param #CONTROLLABLE self
+-- @return DCS#Task
+-- @usage
+--        local plane = GROUP:FindByName("Aerial-1")
+--        -- get a task shell
+--        local aerotask = plane:TaskAerobatics()
+--        -- add a series of maneuvers
+--        aerotask = plane:TaskAerobaticsHorizontalEight(aerotask,1,5000,850,true,false,1,70)
+--        aerotask = plane:TaskAerobaticsWingoverFlight(aerotask,1,0,0,true,true,20)
+--        aerotask = plane:TaskAerobaticsLoop(aerotask,1,0,0,false,true)
+--        -- set the task
+--        plane:SetTask(aerotask)
+function CONTROLLABLE:TaskAerobatics()
+
+  local DCSTaskAerobatics = {
+    id = "Aerobatics",
+    params = {
+      ["maneuversSequency"] = {},
+    },
+    ["enabled"] = true,
+    ["auto"] = false,
+  }
+
+  return DCSTaskAerobatics
+end
+
+--- Add an aerobatics entry of type "CANDLE" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsCandle(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local CandleTask = {
+    ["name"] = "CANDLE",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      }
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],CandleTask)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "EDGE_FLIGHT" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number FlightTime (Optional) Time to fly this manoever in seconds, defaults to 10.
+-- @param #number Side (Optional) On which side to fly,  0 == left, 1 == right side, defaults to 0.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsEdgeFlight(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,FlightTime,Side)
+
+  local maxrepeats = 10
+  local maxflight = 200
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local flighttime = FlightTime or 10
+
+  if flighttime > 200 then maxflight = flighttime end
+
+  local EdgeTask = {
+    ["name"] = "EDGE_FLIGHT",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["FlightTime"] = {
+        ["max_v"] = maxflight,
+        ["min_v"] = 1,
+        ["order"] = 6,
+        ["step"] = 0.1,
+        ["value"] = flighttime or 10, -- Secs?
+      },
+      ["SIDE"] = {
+        ["order"] = 7,
+        ["value"] = Side or 0, --0 == left, 1 == right side
+      },
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],EdgeTask)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "WINGOVER_FLIGHT" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number FlightTime (Optional) Time to fly this manoever in seconds, defaults to 10.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsWingoverFlight(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,FlightTime)
+
+  local maxrepeats = 10
+  local maxflight = 200
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local flighttime = FlightTime or 10
+
+  if flighttime > 200 then maxflight = flighttime end
+
+  local WingoverTask = {
+    ["name"] = "WINGOVER_FLIGHT",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["FlightTime"] = {
+        ["max_v"] = maxflight,
+        ["min_v"] = 1,
+        ["order"] = 6,
+        ["step"] = 0.1,
+        ["value"] = flighttime or 10, -- Secs?
+      },
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],WingoverTask)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "LOOP" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsLoop(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local LoopTask = {
+    ["name"] = "LOOP",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      }
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],LoopTask)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "HORIZONTAL_EIGHT" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number Side (Optional) On which side to fly,  0 == left, 1 == right side, defaults to 0.
+-- @param #number RollDeg (Optional) Roll degrees for Roll 1 and 2, defaults to 60.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsHorizontalEight(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,Side,RollDeg)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local LoopTask = {
+    ["name"] = "HORIZONTAL_EIGHT",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["SIDE"] = {
+        ["order"] = 6,
+        ["value"] = Side or 0,
+      },
+      ["ROLL1"] = {
+        ["order"] = 7,
+        ["value"] = RollDeg or 60,
+      },
+      ["ROLL2"] = {
+        ["order"] = 8,
+        ["value"] = RollDeg or 60,
+      },
+
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],LoopTask)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "HAMMERHEAD" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number Side (Optional) On which side to fly,  0 == left, 1 == right side, defaults to 0.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsHammerhead(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,Side)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local Task = {
+    ["name"] = "HUMMERHEAD",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["SIDE"] = {
+        ["order"] = 6,
+        ["value"] = Side or 0,
+      },
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],Task)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "SKEWED_LOOP" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number Side (Optional) On which side to fly,  0 == left, 1 == right side, defaults to 0.
+-- @param #number RollDeg (Optional) Roll degrees for Roll 1 and 2, defaults to 60.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsSkewedLoop(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,Side,RollDeg)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local Task = {
+    ["name"] = "SKEWED_LOOP",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["ROLL"] = {
+        ["order"] = 6,
+        ["value"] = RollDeg or 60,
+      },
+      ["SIDE"] = {
+        ["order"] = 7,
+        ["value"] = Side or 0,
+      },
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],Task)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "TURN" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number Side (Optional) On which side to fly,  0 == left, 1 == right side, defaults to 0.
+-- @param #number RollDeg (Optional) Roll degrees for Roll 1 and 2, defaults to 60.
+-- @param #number Pull (Optional) How many Gs to pull in this, defaults to 2.
+-- @param #number Angle (Optional) How many degrees to turn, defaults to 180.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsTurn(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,Side,RollDeg,Pull,Angle)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local Task = {
+    ["name"] = "TURN",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["Ny_req"] = {
+        ["order"] = 6,
+        ["value"] = Pull or 2, --amount of G to pull
+      },
+      ["ROLL"] = {
+        ["order"] = 7,
+        ["value"] = RollDeg or 60,
+      },
+      ["SECTOR"] = {
+        ["order"] = 8,
+        ["value"] = Angle or 180,
+      },
+      ["SIDE"] = {
+        ["order"] = 9,
+        ["value"] = Side or 0,
+      },
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],Task)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "DIVE" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 5000.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number Angle (Optional) With how many degrees to dive, defaults to 45. Can be 15 to 90 degrees.
+-- @param #number FinalAltitude (Optional) Final altitude in meters, defaults to 1000.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsDive(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,Angle,FinalAltitude)
+
+  local maxrepeats = 10
+
+  local angle = Angle
+
+  if angle < 15 then angle = 15 elseif angle > 90 then angle = 90 end
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local Task = {
+    ["name"] = "DIVE",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 5000,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["Angle"] = {
+        ["max_v"] = 90,
+        ["min_v"] = 15,
+        ["order"] = 6,
+        ["step"] = 5,
+        ["value"] = angle or 45,
+      },
+      ["FinalAltitude"] = {
+        ["order"] = 7,
+        ["value"] = FinalAltitude or 1000,
+      },
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],Task)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "MILITARY_TURN" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsMilitaryTurn(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local Task = {
+    ["name"] = "MILITARY_TURN",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      }
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],Task)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "IMMELMAN" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsImmelmann(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local Task = {
+    ["name"] = "IMMELMAN",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      }
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],Task)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "STRAIGHT_FLIGHT" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number FlightTime (Optional) Time to fly this manoever in seconds, defaults to 10.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsStraightFlight(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,FlightTime)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local maxflight = 200
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local flighttime = FlightTime or 10
+
+  if flighttime > 200 then maxflight = flighttime end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local Task = {
+    ["name"] = "STRAIGHT_FLIGHT",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["FlightTime"] = {
+        ["max_v"] = maxflight,
+        ["min_v"] = 1,
+        ["order"] = 6,
+        ["step"] = 0.1,
+        ["value"] = flighttime or 10,
+      },
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],Task)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "CLIMB" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number Angle (Optional) Angle to climb. Can be between 15 and 90 degrees. Defaults to 45 degrees.
+-- @param #number FinalAltitude (Optional) Altitude to climb to in meters. Defaults to 5000m.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsClimb(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,Angle,FinalAltitude)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local Task = {
+    ["name"] = "CLIMB",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["Angle"] = {
+        ["max_v"] = 90,
+        ["min_v"] = 15,
+        ["order"] = 6,
+        ["step"] = 5,
+        ["value"] = Angle or 45,
+      },
+      ["FinalAltitude"] = {
+        ["order"] = 7,
+        ["value"] = FinalAltitude or 5000,
+      },
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],Task)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "SPIRAL" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number TurnAngle (Optional) Turn angle, defaults to 360 degrees.
+-- @param #number Roll (Optional) Roll to take, defaults to 60 degrees.
+-- @param #number Side (Optional) On which side to fly,  0 == left, 1 == right side, defaults to 0.
+-- @param #number UpDown (Optional) Spiral upwards (1) or downwards (0). Defaults to 0 - downwards.
+-- @param #number Angle (Optional) Angle to spiral. Can be between 15 and 90 degrees. Defaults to 45 degrees.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsSpiral(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,TurnAngle,Roll,Side,UpDown,Angle)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+  local updown = UpDown and 1 or 0
+  local side = Side and 1 or 0
+
+  local Task = {
+    ["name"] = "SPIRAL",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["SECTOR"] = {
+        ["order"] = 6,
+        ["value"] = TurnAngle or 360,
+      },
+      ["ROLL"] = {
+        ["order"] = 7,
+        ["value"] = Roll or 60,
+      },
+      ["SIDE"] = {
+        ["order"] = 8,
+        ["value"] = side or 0,
+      },
+      ["UPDOWN"] = {
+        ["order"] = 9,
+        ["value"] = updown or 0,
+      },
+      ["Angle"] = {
+        ["max_v"] = 90,
+        ["min_v"] = 15,
+        ["order"] = 10,
+        ["step"] = 5,
+        ["value"] = Angle or 45,
+      },
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],Task)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "SPLIT_S" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number FinalSpeed (Optional) Final speed to reach in KPH. Defaults to 500 kph.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsSplitS(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,FinalSpeed)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local maxflight = 200
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local finalspeed = FinalSpeed or 500
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local Task = {
+    ["name"] = "SPLIT_S",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["FinalSpeed"] = {
+        ["order"] = 6,
+        ["value"] = finalspeed,
+      },
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],Task)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "AILERON_ROLL" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number Side (Optional) On which side to fly,  0 == left, 1 == right side, defaults to 0.
+-- @param #number RollRate (Optional) How many degrees to roll per sec(?), can be between 15 and 450, defaults to 90.
+-- @param #number TurnAngle (Optional) Angles to turn overall, defaults to 360.
+-- @param #number FixAngle (Optional) No idea what this does, can be between 0 and 180 degrees, defaults to 180.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsAileronRoll(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,Side,RollRate,TurnAngle,FixAngle)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local maxflight = 200
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local Task = {
+    ["name"] = "AILERON_ROLL",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["SIDE"] = {
+        ["order"] = 6,
+        ["value"] = Side or 0,
+      },
+      ["RollRate"] = {
+        ["max_v"] = 450,
+        ["min_v"] = 15,
+        ["order"] = 7,
+        ["step"] = 5,
+        ["value"] = RollRate or 90,
+      },
+      ["SECTOR"] = {
+        ["order"] = 8,
+        ["value"] = TurnAngle or 360,
+      },
+      ["FIXSECTOR"] = {
+        ["max_v"] = 180,
+        ["min_v"] = 0,
+        ["order"] = 9,
+        ["step"] = 5,
+        ["value"] = FixAngle or 0, -- TODO: Need to find out what this does
+      },
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],Task)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "FORCED_TURN" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number TurnAngle (Optional) Angles to turn, defaults to 360.
+-- @param #number Side (Optional) On which side to fly,  0 == left, 1 == right side, defaults to 0.
+-- @param #number FlightTime (Optional) Flight time in seconds for thos maneuver. Defaults to 30.
+-- @param #number MinSpeed (Optional) Minimum speed to keep in kph, defaults to 250 kph.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsForcedTurn(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,TurnAngle,Side,FlightTime,MinSpeed)
+
+  local maxrepeats = 10
+  local flighttime = FlightTime or 30
+  local maxtime = 200
+  if flighttime > 200 then maxtime = flighttime end
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local Task = {
+    ["name"] = "FORCED_TURN",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["SECTOR"] = {
+        ["order"] = 6,
+        ["value"] = TurnAngle or 360,
+      },
+      ["SIDE"] = {
+        ["order"] = 7,
+        ["value"] = Side or 0,
+      },
+      ["FlightTime"] = {
+        ["max_v"] = maxtime or 200,
+        ["min_v"] = 0,
+        ["order"] = 8,
+        ["step"] = 0.1,
+        ["value"] = flighttime or 30,
+      },
+      ["MinSpeed"] = {
+        ["max_v"] = 3000,
+        ["min_v"] = 30,
+        ["order"] = 9,
+        ["step"] = 10,
+        ["value"] = MinSpeed or 250,
+      },
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],Task)
+
+  return TaskAerobatics
+end
+
+--- Add an aerobatics entry of type "BARREL_ROLL" to the Aerobatics Task.
+-- @param #CONTROLLABLE self
+-- @param DCS#Task TaskAerobatics The Aerobatics Task
+-- @param #number Repeats (Optional) The number of repeats, defaults to 1.
+-- @param #number InitAltitude (Optional) Starting altitude in meters, defaults to 0.
+-- @param #number InitSpeed (Optional) Starting speed in KPH, defaults to 0.
+-- @param #boolean UseSmoke (Optional)  Using smoke, defaults to false.
+-- @param #boolean StartImmediately (Optional) If true, start immediately and ignore  InitAltitude and InitSpeed.
+-- @param #number Side (Optional) On which side to fly,  0 == left, 1 == right side, defaults to 0.
+-- @param #number RollRate (Optional) How many degrees to roll per sec(?), can be between 15 and 450, defaults to 90.
+-- @param #number TurnAngle (Optional) Turn angle, defaults to 360 degrees.
+-- @return DCS#Task
+function CONTROLLABLE:TaskAerobaticsBarrelRoll(TaskAerobatics,Repeats,InitAltitude,InitSpeed,UseSmoke,StartImmediately,Side,RollRate,TurnAngle)
+
+  local maxrepeats = 10
+
+  if Repeats > maxrepeats then maxrepeats = Repeats end
+
+  local usesmoke = UseSmoke and 1 or 0
+
+  local startimmediately = StartImmediately and 1 or 0
+
+  local Task = {
+    ["name"] = "BARREL_ROLL",
+    ["params"] = {
+      ["RepeatQty"] = {
+        ["max_v"] = maxrepeats,
+        ["min_v"] = 1,
+        ["order"] = 1,
+        ["value"] = Repeats or 1,
+      },
+      ["InitAltitude"] = {
+        ["order"] = 2,
+        ["value"] = InitAltitude or 0,
+      },
+      ["InitSpeed"] = {
+        ["order"] = 3,
+        ["value"] = InitSpeed or 0,
+      },
+      ["UseSmoke"] = {
+        ["order"] = 4,
+        ["value"] = usesmoke,
+      },
+      ["StartImmediatly"] = {
+        ["order"] = 5,
+        ["value"] = startimmediately,
+      },
+      ["SIDE"] = {
+        ["order"] = 6,
+        ["value"] = Side or 0,
+      },
+      ["RollRate"] = {
+        ["max_v"] = 450,
+        ["min_v"] = 15,
+        ["order"] = 7,
+        ["step"] = 5,
+        ["value"] = RollRate or 90,
+      },
+      ["SECTOR"] = {
+        ["order"] = 8,
+        ["value"] = TurnAngle or 360,
+      },
+    }
+  }
+
+  table.insert(TaskAerobatics.params["maneuversSequency"],Task)
+
+  return TaskAerobatics
+end
+
+
+--- [Air] Make an airplane or helicopter patrol between two points in a racetrack - resulting in a much tighter track around the start and end points.
+-- @param #CONTROLLABLE self
+-- @param Core.Point#COORDINATE Point1 Start point.
+-- @param Core.Point#COORDINATE Point2 End point.
+-- @param #number Altitude (Optional) Altitude in meters. Defaults to the altitude of the coordinate.
+-- @param #number Speed (Optional) Speed in kph. Defaults to 500 kph.
+-- @param #number Formation (Optional) Formation to take, e.g. ENUMS.Formation.FixedWing.Trail.Close, also see [Hoggit Wiki](https://wiki.hoggitworld.com/view/DCS_option_formation).
+-- @param #boolean AGL (Optional) If true, set altitude to above ground level (AGL), not above sea level (ASL).
+-- @param #number Delay  (Optional) Set the task after delay seconds only.
+-- @return #CONTROLLABLE self
+function CONTROLLABLE:PatrolRaceTrack(Point1, Point2, Altitude, Speed, Formation, AGL, Delay)
+
+  local PatrolGroup = self -- Wrapper.Group#GROUP
+
+  if not self:IsInstanceOf( "GROUP" ) then
+    PatrolGroup = self:GetGroup() -- Wrapper.Group#GROUP
+  end
+
+  local delay = Delay or 1
+
+  self:F( { PatrolGroup = PatrolGroup:GetName() } )
+
+  if PatrolGroup:IsAir() then
+    if Formation then
+       PatrolGroup:SetOption(AI.Option.Air.id.FORMATION,Formation) -- https://wiki.hoggitworld.com/view/DCS_option_formation
+   end
+
+   local FromCoord = PatrolGroup:GetCoordinate()
+   local ToCoord = Point1:GetCoordinate()
+
+   -- Calculate the new Route
+   if Altitude then
+     local asl = true
+     if AGL then asl = false end
+     FromCoord:SetAltitude(Altitude, asl)
+     ToCoord:SetAltitude(Altitude, asl)
+   end
+
+   -- Create a "air waypoint", which is a "point" structure that can be given as a parameter to a Task
+   local Route = {}
+   Route[#Route + 1] = FromCoord:WaypointAir( AltType, COORDINATE.WaypointType.TurningPoint, COORDINATE.WaypointAction.TurningPoint, Speed, true, nil, DCSTasks, description, timeReFuAr )
+   Route[#Route + 1] = ToCoord:WaypointAir( AltType, COORDINATE.WaypointType.TurningPoint, COORDINATE.WaypointAction.TurningPoint, Speed, true, nil, DCSTasks, description, timeReFuAr )
+
+   local TaskRouteToZone = PatrolGroup:TaskFunction( "CONTROLLABLE.PatrolRaceTrack", Point2, Point1, Altitude, Speed, Formation, Delay )
+   PatrolGroup:SetTaskWaypoint( Route[#Route], TaskRouteToZone ) -- Set for the given Route at Waypoint 2 the TaskRouteToZone.
+   PatrolGroup:Route( Route, Delay ) -- Move after delay seconds to the Route. See the Route method for details.
+  end
+
   return self
 end
